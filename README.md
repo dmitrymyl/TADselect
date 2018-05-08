@@ -48,5 +48,5 @@ calculate_concordance - считает JI и OC, пишет в файл.
 - TADbit - выглядит несложно, управляющий параметр?
 - HiCExplorer - новый метод, нет в статье, выглядит безобидно, но использует какой-то свой формат матрицы контактов, надо конвертировать. В качестве входного формата принимает npz - он получается при сохранении np.array с помощью np.savez. Возможно, dekker - это подходящий формат. По ссылке как превратить обычную матрицу ndarray в npz: https://github.com/deeptools/HiCExplorer/issues/50
 
-Уже есть armatus и несколько из lavaburst, пока стоит в очереди HiCseg. Надо сделать InsulationScore, arrowhead, TADbit, DomainCaller, TADtree в порядке снижения приоритета и повышения сложности.
+Уже есть armatus и несколько из lavaburst, пока стоит в очереди HiCseg. Надо сделать tadtool, arrowhead, TADbit, DomainCaller, TADtree в порядке снижения приоритета и повышения сложности.
 
