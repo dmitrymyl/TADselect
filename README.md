@@ -50,3 +50,10 @@ calculate_concordance - считает JI и OC, пишет в файл.
 
 Уже есть armatus и несколько из lavaburst, пока стоит в очереди HiCseg. Надо сделать tadtool, arrowhead, TADbit, DomainCaller, TADtree в порядке снижения приоритета и повышения сложности.
 
+## Подбор gamma
+### lavaburst
+- armatus = 0
+- modularity = 15-16
+- potts = 16
+- variance = no
+- corner = 2
