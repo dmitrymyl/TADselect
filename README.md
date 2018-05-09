@@ -52,13 +52,14 @@ calculate_concordance - считает JI и OC, пишет в файл.
 
 ## Подбор gamma
 ### lavaburst
-![](https://github.com/dmitrymyl/TADreproduce/blob/master/sim_TADs/lava_armatus.png)
 - armatus = 0
-![](https://github.com/dmitrymyl/TADreproduce/blob/master/sim_TADs/modularity.png)
+![](https://github.com/dmitrymyl/TADreproduce/blob/master/sim_TADs/lava_armatus.png)
 - modularity = 15-16
-![](https://github.com/dmitrymyl/TADreproduce/blob/master/sim_TADs/potts.png)
+![](https://github.com/dmitrymyl/TADreproduce/blob/master/sim_TADs/modularity.png)
 - potts = 16
-![](https://github.com/dmitrymyl/TADreproduce/blob/master/sim_TADs/variance_1.png)
+![](https://github.com/dmitrymyl/TADreproduce/blob/master/sim_TADs/potts.png)
 - variance = no
-![](https://github.com/dmitrymyl/TADreproduce/blob/master/sim_TADs/corner.png)
+![](https://github.com/dmitrymyl/TADreproduce/blob/master/sim_TADs/variance_1.png)
 - corner = 2
+![](https://github.com/dmitrymyl/TADreproduce/blob/master/sim_TADs/corner.png)
+
