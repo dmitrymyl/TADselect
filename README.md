@@ -63,3 +63,5 @@ calculate_concordance - считает JI и OC, пишет в файл.
 - corner = 2
 ![](https://github.com/dmitrymyl/TADreproduce/blob/master/sim_TADs/corner.png)
 
+Ещё надо посмотреть, как меняется TPR и FDR для каждой гаммы при усилении шума и что с этим делать.
+Размер ТАДов и их количество в зависимости от TPR и FDR, в зависимости от гаммы.
