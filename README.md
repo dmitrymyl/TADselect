@@ -2,9 +2,8 @@
 
 Here we introduce a library for testing various TAD callers.
 
-TODO list: 
-- Add setup.py and installation as pip -e ./
-- Grid parameters search -- automatic call:
+#### TODO list:
+- Grid parameters search; automatic call:
 ```python 
 lc.load_segmentation( lc.call(0.9) )
 ```

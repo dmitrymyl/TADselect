@@ -5,7 +5,7 @@ import cooler
 import lavaburst
 import pandas as pd
 
-#from logger import *
+from .logger import logger
 
 ######## Basic utils to run linux commands #########
 

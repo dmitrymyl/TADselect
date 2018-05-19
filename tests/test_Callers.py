@@ -19,8 +19,8 @@ class TestLavaburst(unittest.TestCase):
     def test_creation_of_object(self):
 
         lc = LavaburstCaller(['S2'], ['../data/S2.20000.cool'], 'cool', assembly='dm3', resolution=20000, balance=True, chr='chr2L')
-        lc.load_segmentation( lc.call(0.9) )
-        lc.load_segmentation( lc.call(1.9) )
+        lc.call(0.9)
+        lc.call(1.9)
         df = lc.segmentation2df()
 
         self.assertEqual(len(lc._segmentations.keys()), 1)

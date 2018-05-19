@@ -3,6 +3,7 @@ Classes for TAD calling for various tools
 """
 
 from .utils import *
+from .logger import logger
 
 ACCEPTED_FORMATS = ['cool', 'txt', 'txt.gz']
 
@@ -30,6 +31,8 @@ class BaseCaller(object):
             self._metadata -- metadata, fict with 'assembly', 'chr','resolution', 'labels', 'balance' keys
             self._segmentations -- dictionary with segmentations for all the files
         """
+
+        logger.debug("Initializing from files: %s", str(datasets_files))
 
         assert len(datasets_labels)==len(datasets_files)
 
@@ -82,7 +85,7 @@ class BaseCaller(object):
 
         elif 'txt' in original_format and data_format=='cool':
             # TODO implement this option
-            logger.ERROR('Option currently not importmented!')
+            logger.error('Option currently not importmented!')
 
         self._metadata['files_{}'.format(data_format)] = resulting_files
         self._metadata['data_formats'].append(data_format)
@@ -93,21 +96,23 @@ class BaseCaller(object):
         :param params: set of calling parameters
         :return: dict (ordered by metadata['labels']) with segmentations (2d np.ndarray) or names of files
         """
-        logger.DEBUG("Calling dump BaseCaller segmentation call with params: {}".format(str, params))
-        return {x: np.empty([0,0]) for x in self._metadata['labels']}
+        logger.debug("Calling dump BaseCaller segmentation call with params: {}".format(str, params))
+        segmentations = {x: np.empty([0,0]) for x in self._metadata['labels']}
+        self._load_segmentations(segmentations, params)
+        return
 
 
-    def load_segmentation(self, input, params):
+    def _load_segmentations(self, input, params):
         """
         Basic function of BaseCaller to load the segmentation (from file or from variable)
         :param input dict (ordered by metadata['labels']) with segmentations (2d np.ndarray) or names of files
         :param params: set of parameters
         :return:
         """
-        logger.DEBUG("Calling dump BaseCaller segmentation loading")
+        logger.debug("Calling dump BaseCaller segmentation loading")
 
         for x in self._metadata['labels']:
-            self._segmentations[x][params] = input[self._metadata['labels']]
+            self._segmentations[x][params] = input[x]
 
     def segmentation2df(self):
         """
@@ -125,7 +130,8 @@ class BaseCaller(object):
                     'params':[str(y) for i in range(lngth)]
                 })
                 self._df = pd.concat([self._df, df]).copy()
-
+        self._df.bgn = pd.to_numeric(self._df.bgn)
+        self._df.end = pd.to_numeric(self._df.end)
         return self._df
 
 class LavaburstCaller(BaseCaller):
@@ -133,8 +139,8 @@ class LavaburstCaller(BaseCaller):
 # Example run:
 # from CallerClasses import *
 # lc = LavaburstCaller(['S2'], ['../data/S2.20000.cool'], 'cool', assembly='dm3', resolution=20000, balance=True, chr='chr2L')
-# lc.load_segmentation( lc.call(0.9) )
-# lc.load_segmentation( lc.call(1.9) )
+# lc.call(0.9)
+# lc.call(1.9)
 # df = lc.segmentation2df()
 #
 
@@ -160,10 +166,11 @@ class LavaburstCaller(BaseCaller):
 
             segmentation = self._call_single(mtx, gamma, **kwargs)
 
-            output_dct[label] = {}
-            output_dct[label][(gamma)] = segmentation.copy()
+            output_dct[label] = segmentation.copy()
 
-        return output_dct
+        self._load_segmentations(output_dct, (gamma))
+
+        return self._segmentations
 
     def _call_single(self, mtx, gamma, good_bins='default', method='armatus', max_intertad_size=3, max_tad_size=10000):
         """
@@ -205,8 +212,3 @@ class LavaburstCaller(BaseCaller):
         segments = segments[mask]
 
         return np.array(segments)
-
-    def load_segmentation(self, input):
-        for x in input.keys():
-            for params in input[x].keys():
-                self._segmentations[x][params] = input[x][params]
