@@ -2,7 +2,7 @@
 Classes for TAD calling for various tools
 """
 
-from utils import *
+from .utils import *
 
 ACCEPTED_FORMATS = ['cool', 'txt', 'txt.gz']
 
