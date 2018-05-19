@@ -38,7 +38,7 @@ class BaseCaller(object):
             raise TypeError("Metadata should be a dictionary not a %s" % str(type(metadata)))
 
         metadata['assembly'] = kwargs.get('assembly', '-')
-        metadata['chr'] = kwargs.get('chromosome', 'chr1')
+        metadata['chr'] = kwargs.get('chr', 'chr1')
         metadata['size'] = kwargs.get('size', 0)
         metadata['resolution'] = metadata.get('resolution', 1000)
         metadata['labels'] = datasets_labels
@@ -50,7 +50,7 @@ class BaseCaller(object):
 
         self._metadata = metadata
 
-        self._segmentations = {x:{} for x in dataset_labels}
+        self._segmentations = {x:{} for x in datasets_labels}
 
     def convert_files(self, data_format, **kwargs):
         """
@@ -63,17 +63,23 @@ class BaseCaller(object):
         assert data_format in ACCEPTED_FORMATS
 
         original_format = self._metadata['data_formats'][0]
+        ch = self._metadata['chr']
 
         resulting_files = []
-        if original_format=='oool' and 'txt' in data_format:
+        if original_format=='cool' and 'txt' in data_format:
             for f in self._metadata['files_cool']:
-                output_name = '.'.join(x.split('.')[:-1])+'txt'
-                c = cooler.Cooler(f, balance=self._metadata['balance'])
-                mtx = c.fetch(self._metadata['chr'])
-                np.savetxt(output_name, mtx, delimiter='\t')
+                output_prefix = '.'.join(f.split('.')[:-1])
+                output_file = output_prefix+'.{}.txt'.format(ch)
+
+                c = cooler.Cooler(f)
+                mtx = c.matrix(balance=self._metadata['balance'], as_pixels=False).fetch(ch, self._metadata['chr'])
+
+                np.savetxt(output_file, mtx, delimiter='\t')
                 resulting_files.append(output_name)
+
             if 'gz' in data_format:
                 subprocess.call('gzip {}'.format(output_name), shell=true)
+
         elif 'txt' in original_format and data_format=='cool':
             # TODO implement this option
             logger.ERROR('Option currently not importmented!')
@@ -115,31 +121,49 @@ class BaseCaller(object):
                 df = pd.DataFrame({
                     'bgn': self._segmentations[x][y][:,0],
                     'end': self._segmentations[x][y][:,1],
-                    'label': [x for x in range(lngth)],
-                    'params':[str(y) for y in range(lngth)]
+                    'label': [x for i in range(lngth)],
+                    'params':[str(y) for i in range(lngth)]
                 })
-                self._df.append(df)
+                self._df = pd.concat([self._df, df]).copy()
 
         return self._df
 
 class LavaburstCaller(BaseCaller):
 
+# Example run:
+# from CallerClasses import *
+# lc = LavaburstCaller(['S2'], ['../data/S2.20000.cool'], 'cool', assembly='dm3', resolution=20000, balance=True, chr='chr2L')
+# lc.load_segmentation( lc.call(0.9) )
+# lc.load_segmentation( lc.call(1.9) )
+# df = lc.segmentation2df()
+#
+
     def call(self, gamma, **kwargs):
 
         if not 'files_cool' in self._metadata.keys():
-            raise BasicCallerException("No oool file present for caller. Please, perform valid conversion!")
+            raise BasicCallerException("No cool file present for caller. Please, perform valid conversion!")
 
         output_dct = {}
 
         for label, f in zip(self._metadata['labels'], self._metadata['files_cool']):
-            c = cooler.Cooler(f, balance=self._metadata['balance'])
-            mtx = c.fetch(self._metadata['chr'])
+            c = cooler.Cooler(f)
+            mtx = c.matrix(balance=self._metadata['balance'], as_pixels=False).fetch(self._metadata['chr'], self._metadata['chr'])
+
+            mtx[np.isnan(mtx)] = 0
+            np.fill_diagonal(mtx, 0)
+            mn = np.percentile(mtx[mtx > 0], 1)
+            mx = np.percentile(mtx[mtx > 0], 99)
+            mtx[mtx <= mn] = mn
+            mtx[mtx >= mx] = mx
+            mtx = np.log(mtx)
+            mtx = mtx - np.min(mtx)
+
             segmentation = self._call_single(mtx, gamma, **kwargs)
 
             output_dct[label] = {}
             output_dct[label][(gamma)] = segmentation.copy()
 
-         return output_dct
+        return output_dct
 
     def _call_single(self, mtx, gamma, good_bins='default', method='armatus', max_intertad_size=3, max_tad_size=10000):
         """
@@ -153,7 +177,7 @@ class LavaburstCaller(BaseCaller):
         """
 
         if np.any(np.isnan(mtx)):
-            logging.warning("NaNs in dataset, pease remove them first.")
+            logger.warning("NaNs in dataset, pease remove them first.")
 
         if np.diagonal(mtx).sum() > 0:
             logger.warning(

@@ -3,8 +3,10 @@ import subprocess
 import numpy as np
 import cooler
 import lavaburst
+import pandas as pd
 
-from .logger import logger
+#from .logger import logger
+from logger import *
 
 ######## Basic utils to run linux commands #########
 
