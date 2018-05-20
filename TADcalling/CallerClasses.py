@@ -178,7 +178,7 @@ class LavaburstCaller(BaseCaller):
         :param gamma: parameter for segmentation calling
         :param good_bins: bool vector with length of len(mtx) with False corresponding to masked bins, 'default' is that
             good bins are all columns/rows with sum > 0
-        :param method: 'modularity' (default) or 'armatus'
+        :param method: 'modularity', 'variance', 'corner' or 'armatus' (defalut)
         :param max_intertad_size: max size of segmentation unit that is considered as interTAD
         :return:  2D numpy array where segments[:,0] are segment starts and segments[:,1] are segments end, each row corresponding to one segment
         """
@@ -194,8 +194,11 @@ class LavaburstCaller(BaseCaller):
             score = lavaburst.scoring.modularity_score
         elif method == 'armatus':
             score = lavaburst.scoring.armatus_score
+        elif method == 'corner':
+            score = lavaburst.scoring.corner_score
+        elif method == 'variance':
+            score = lavaburst.scoring.variance_score
         else:
-            # TODO add all the options from lavaburst package
             raise BasicCallerException('Algorithm not understood: {}'.format(method))
 
         if good_bins == 'default':
@@ -206,6 +209,67 @@ class LavaburstCaller(BaseCaller):
 
         segments = model.optimal_segmentation()
 
+        v = segments[:, 1] - segments[:, 0]
+        mask = (v > max_intertad_size) & (np.isfinite(v)) & (v < max_tad_size)
+
+        segments = segments[mask]
+
+        return np.array(segments)
+
+
+class ArmatusCaller(BaseCaller):
+
+    def call(self, gamma, **kwargs):
+
+        if 'files_cool' not in self._metadata.keys():
+            raise BasicCallerException("No cool file present for caller. Please, perform valid conversion!")
+
+        output_dct = {}
+
+        for label, f in zip(self._metadata['labels'], self._metadata['files_cool']):
+            c = cooler.Cooler(f)
+            mtx = c.matrix(balance=self._metadata['balance'], as_pixels=False).fetch(self._metadata['chr'], self._metadata['chr'])
+
+            mtx[np.isnan(mtx)] = 0
+            np.fill_diagonal(mtx, 0)
+            mn = np.percentile(mtx[mtx > 0], 1)
+            mx = np.percentile(mtx[mtx > 0], 99)
+            mtx[mtx <= mn] = mn
+            mtx[mtx >= mx] = mx
+            mtx = np.log(mtx)
+            mtx = mtx - np.min(mtx)
+
+            segmentation = self._call_single(mtx, gamma, **kwargs)
+
+            output_dct[label] = segmentation.copy()
+
+        self._load_segmentations(output_dct, (gamma))
+
+        return self._segmentations
+
+
+    def _call_single(self, mtx, gamma, good_bins='default', max_intertad_size=3, max_tad_size=10000):
+        """
+        Produces single segmentation (TADs calling) of mtx with one gamma with the algorithm provided.
+        :param gamma: parameter for segmentation calling
+        :param good_bins: bool vector with length of len(mtx) with False corresponding to masked bins, 'default' is that
+            good bins are all columns/rows with sum > 0
+        :param max_intertad_size: max size of segmentation unit that is considered as interTAD
+        :return:  2D numpy array where segments[:,0] are segment starts and segments[:,1] are segments end, each row corresponding to one segment
+        """
+
+        if np.any(np.isnan(mtx)):
+            logger.warning("NaNs in dataset, pease remove them first.")
+
+        if np.diagonal(mtx).sum() > 0:
+            logger.warning(
+                "Note that diagonal is not removed. you might want to delete it to avoid noisy and not stable results. ")
+
+        # TODO: implement CLI via subprocess. Convert matrix to txt.gz, store segmentation in buff.consensus.txt and
+        # extract it with np.loadtxt, then delete chr column
+        # subprocess.run("/armatus -i <input.txt.gz> -g <gamma> -j -o <output buff.txt> -r <resolution>")
+        # segments = np.loadtxt("buff.txt", ndmin=2, dtype=object)
+        # segments = np.array(segments[:, 1:], dtype=int)
         v = segments[:, 1] - segments[:, 0]
         mask = (v > max_intertad_size) & (np.isfinite(v)) & (v < max_tad_size)
 
