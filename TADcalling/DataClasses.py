@@ -27,17 +27,17 @@ class GenomicRanges(object):
             * resolution (:obj:`int`): size of bin in basepairs, default is 1000
             * metadata (:obj:`dict`): optional metadata dict, default is empty dict
         """
-        self.data = np.array(arr_object, dtype=int, ndmin=2)
-        if self.data.shape[1] != 2:
-            raise Exception("Shape of arr_object is not n x 2")
-        self.length = self.data.shape[0]
-        if arr_count:
-            self.count = arr_count
-            if self.count.shape[0] != self.length:
-                raise Exception("Size of count array and amount of ranges are not equal.")
-        else:
-            # maybe fill with zeros?
+        buff = np.array(arr_object, dtype=int, ndmin=2)
+        if buff.shape[1] == 2:
+            self.data = buff
             self.count = np.full_like(self.data[:, 0], 1, dtype=int)
+        elif buff.shape[1] == 3:
+            self.data = buff[:, 0:1]
+            self.count = buff[:, 2]
+        else:
+            raise Exception("Shape of arr_object is not as required.")
+
+        self.length = self.data.shape[0]
         self.data_type = data_type
         metadata = kwargs.get('metadata', {})
         if not isinstance(metadata, dict):
@@ -48,7 +48,7 @@ class GenomicRanges(object):
         metadata['size'] = kwargs.get('size', 0)
         metadata['resolution'] = metadata.get('resolution', 1000)
         self._metadata = metadata
-    
+
     @staticmethod
     def TAD_bins(arr):
         """
@@ -56,14 +56,14 @@ class GenomicRanges(object):
         """
         _vector_str = np.vectorize(str)
         return npchar.add(_vector_str(arr[:, 0]), npchar.add(",", _vector_str(arr[:, 1])))
-    
+
     @staticmethod
     def TAD_boundaries(arr):
         """
         Returns TAD unique boundaries.
         """
         return np.unique(np.append(arr[:, 0], arr[:, 1]))
-    
+
     @staticmethod
     def jaccard_index(arr1, arr2):
         """
@@ -72,7 +72,7 @@ class GenomicRanges(object):
         """
         intersection = np.isin(arr1, arr2)
         return sum(intersection) / (arr1.shape[0] + arr2.shape[0] - sum(intersection))
-    
+
     @staticmethod
     def overlap_coef(arr1, arr2):
         """
@@ -82,7 +82,27 @@ class GenomicRanges(object):
         intersection = np.isin(arr1, arr2)
         return sum(intersection) / min(arr1.shape[0], arr2.shape[0])
 
-    # Redefine coefs with np.intersect1d, np.union1d, np.setdiff1d? Set routines in numpy.
+    @staticmethod
+    def find_intersect(arr1, arr2, ident=1):
+        """
+        Return logical indexes of intersecting ranges in two
+        2d arrays with given identity regarding the first array.
+        Asymmetrical!
+        """
+        mask1 = np.zeros(arr1.shape[0], dtype=bool)
+        mask2 = np.zeros(arr2.shape[0], dtype=bool)
+        i, k = 0, 0
+        while i < arr1.shape[0] and k < arr2.shape[0]:
+            if arr1[i, 0] >= arr2[k, 1]:
+                k += 1
+            elif arr1[i, 1] <= arr2[k, 0]:
+                i += 1
+            else:
+                intersecting = min(arr1[i, 1], arr2[k, 1]) - max(arr1[i, 0], arr2[k, 0]) + 1
+                if (intersecting / (arr1[i, 1] - arr1[i, 0] + 1)) >= ident:
+                    mask1[i], mask2[k] = True, True
+                k += 1
+        return mask1, mask2
 
     def count_coef(self, other, coef="JI TADs"):
         """
@@ -119,7 +139,33 @@ class GenomicRanges(object):
         else:
             raise Exception('Coefficient not understood: {}'.format(coef))
 
+    def count_shared(self, other, ident=1):
+        """
+        Return share of shared TADs regarding the first range with given identity.
+        Asymmetrical!
+        """
+        shared1, shared2 = map(sum, find_intersect(self.data, other.data, ident=ident))
+        # TODO: consider the formulae.
+        return shared1 / (self.length + other.length - shared1)
+
     # TODO: define JI and OC for boundaries with offset as in @agal
-    # TODO: count number of shared TADs.
-    # TODO: implement bedtools intersect with 70% coverage. Easy in while loop
-    # by O(n+m), but want to implement in numpy.
+
+# TODO: test this.
+def load_BED(filename):
+    """
+    Return dictionary of GenomicRanges with chromosomes 
+    as keys from BED-like file. Can load 2-column file,
+    3- and 6-column BED files.
+    """
+    buff = np.loadtxt(filename, dtype=object, ndmin=2)
+    if buff.shape[1] not in (2, 3, 6):
+        raise Exception("Given file is not BED-like.")
+    elif buff.shape[1] == 2:
+        return {"chr1": GenomicRanges(buff)}
+    else:
+        chrms = np.unique(buff[:, 0])
+        indices = [np.searchsorted(buff[:, 0], chrm) for chrm in chrms]
+        if buff.shape[1] == 3:
+            return {chrm: GenomicRanges(arr) for chrm, arr in zip(chrms, np.vsplit(buff[:, 1:], indices))}
+        if buff.shape[1] == 6:
+            return {chrm: GenomicRanges(arr) for chrm, arr in zip(chrms, np.vsplit(buff[:, [1, 2, 4]], indices))}
