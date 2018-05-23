@@ -12,7 +12,6 @@ class GenomicRanges(object):
     """
     Basic class for any genomic ranges.
     """
-    # TODO: implement load from bed file with 3 or 4 columns - make a function
 
     def __init__(self, arr_object, arr_count=None, data_type='simulation', **kwargs):
         """
@@ -83,6 +82,20 @@ class GenomicRanges(object):
         return sum(intersection) / min(arr1.shape[0], arr2.shape[0])
 
     @staticmethod
+    def TPR(arr1, arr2):
+        """
+        Calculate TPR of arr2 in arr1.
+        """
+        return sum(np.isin(arr1, arr2)) / arr2.shape[0]
+
+    @staticmethod
+    def FDR(arr1, arr2):
+        """
+        Calculate FDR in arr1 regarding arr2.
+        """
+        return sum(~np.isin(arr1, arr2)) / arr1.shape[0]
+
+    @staticmethod
     def find_intersect(arr1, arr2, ident=1):
         """
         Return logical indexes of intersecting ranges in two
@@ -104,7 +117,45 @@ class GenomicRanges(object):
                 k += 1
         return mask1, mask2
 
-    def count_coef(self, other, coef="JI TADs"):
+    @staticmethod
+    def make_offset(arr1, arr2, offset=1):
+        """
+        Tries to fit arr1 to arr2 by shifting
+        borders on value not greater then offset.
+        Returns fitted arr1 and original arr2.
+        Asymmetrical!
+        """
+        v1 = arr1.copy()
+        v2 = arr2.copy()
+
+        def cutzeros(i, offset):
+            return i if abs(i) <= offset else 0
+
+        cutzerosvec = np.vectorize(cutzeros)
+
+        # First, find identical end borders and try to fit starts.
+        mask_ends_1 = np.isin(v1[:, 1], v2[:, 1])
+        mask_ends_2 = sum(v2[:, 1] == end for end in v1[:, 1][mask_ends_1]).astype(dtype=bool)
+        dists1 = v2[mask_ends_2] - v1[mask_ends_1]
+        v1[mask_ends_1] += cutzerosvec(dists1, offset)
+
+        # Second, find identical start borders and try to fit ends.
+        mask_starts_1 = np.isin(v1[:, 0], v2[:, 0])
+        mask_starts_2 = sum(v2[:, 0] == end for end in v1[:, 0][mask_starts_1]).astype(dtype=bool)
+        dists2 = v2[mask_starts_2] - v1[mask_starts_1]
+        v1[mask_starts_1] += cutzerosvec(dists2, offset)
+
+        # Finally, try to fit both starts and ends.
+        start_dist = np.array([min(v2[:, 0] - i, key=abs) for i in v1[:, 0]], dtype=int)
+        end_dist = np.array([min(v2[:, 1] - i, key=abs) for i in v1[:, 1]], dtype=int)
+        mask_start = abs(start_dist) <= offset
+        mask_end = abs(end_dist) <= offset
+        v1[:, 0][mask_start] += start_dist[mask_start]
+        v1[:, 1][mask_end] += end_dist[mask_end]
+        return v1, v2
+
+    # Redefine with two dictionaries of methods? Where to place dictionaries?
+    def count_coef(self, other, coef="JI TADs", offset=0):
         """
         Calculate coefficient between two genomic ranges.
         :param type: JI TADs, JI boundaries, OC TADs, OC boundaries, TPR, FDR.
@@ -113,28 +164,28 @@ class GenomicRanges(object):
         true segmentation obtained from simulation.
         """
         if coef == 'JI TADs':
-            return GenomicRanges.jaccard_index(GenomicRanges.TAD_bins(self.data), GenomicRanges.TAD_bins(other.data))
+            return GenomicRanges.jaccard_index(*map(GenomicRanges.TAD_bins, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         elif coef == 'JI boundaries':
-            return GenomicRanges.jaccard_index(GenomicRanges.TAD_boundaries(self.data), GenomicRanges.TAD_boundaries(other.data))
+            return GenomicRanges.jaccard_index(*map(GenomicRanges.TAD_boundaries, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         elif coef == 'OC TADs':
-            return GenomicRanges.overlap_coef(GenomicRanges.TAD_bins(self.data), GenomicRanges.TAD_bins(other.data))
+            return GenomicRanges.overlap_coef(*map(GenomicRanges.TAD_bins, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         elif coef == 'OC boundaries':
-            return GenomicRanges.overlap_coef(GenomicRanges.TAD_boundaries(self.data), GenomicRanges.TAD_boundaries(other.data))
+            return GenomicRanges.overlap_coef(*map(GenomicRanges.TAD_boundaries, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         elif coef == 'TPR TADs':
-            return sum(np.isin(GenomicRanges.TAD_bins(self.data), GenomicRanges.TAD_bins(other.data))) / GenomicRanges.TAD_bins(other.data).shape[0]
+            return GenomicRanges.TPR(*map(GenomicRanges.TAD_bins, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         elif coef == 'FDR TADs':
-            return sum(~np.isin(GenomicRanges.TAD_bins(self.data), GenomicRanges.TAD_bins(other.data))) / GenomicRanges.TAD_bins(self.data).shape[0]
+            return GenomicRanges.FDR(*map(GenomicRanges.TAD_bins, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         elif coef == 'TPR boundaries':
-            return sum(np.isin(GenomicRanges.TAD_boundaries(self.data), GenomicRanges.TAD_boundaries(other.data))) / GenomicRanges.TAD_boundaries(other.data).shape[0]
+            return GenomicRanges.TPR(*map(GenomicRanges.TAD_boundaries, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         elif coef == 'FDR boundaries':
-            return sum(~np.isin(GenomicRanges.TAD_boundaries(self.data), GenomicRanges.TAD_boundaries(other.data))) / GenomicRanges.TAD_boundaries(self.data).shape[0]
+            return GenomicRanges.FDR(*map(GenomicRanges.TAD_boundaries, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         else:
             raise Exception('Coefficient not understood: {}'.format(coef))
@@ -148,7 +199,6 @@ class GenomicRanges(object):
         # TODO: consider the formulae.
         return shared1 / (self.length + other.length - shared1)
 
-    # TODO: define JI and OC for boundaries with offset as in @agal
 
 # TODO: test this.
 def load_BED(filename):
