@@ -14,11 +14,10 @@ class GenomicRanges(object):
     Basic class for any genomic ranges.
     """
 
-    def __init__(self, arr_object, arr_count=None, data_type='simulation', **kwargs):
+    def __init__(self, arr_object, data_type='simulation', **kwargs):
         """
         Initialize base genomic ranges object.
         :param arr_object (:obj:`collection`): any array-like object
-        :param arr_count (:obj: `collection`): any array-like object of the same length as arr_object
         :param data_type (:obj: `str`): type of data (simulated segmentation (default), genomic track)
         :param kwargs:
             * assembly (:obj:`str`): name of assembly, default is '-'
@@ -48,7 +47,7 @@ class GenomicRanges(object):
         metadata['size'] = kwargs.get('size', 0)
         metadata['resolution'] = metadata.get('resolution', 1000)
         self._metadata = metadata
-    
+
     @staticmethod
     def TAD_bins(arr):
         """
@@ -56,14 +55,14 @@ class GenomicRanges(object):
         """
         _vector_str = np.vectorize(str)
         return npchar.add(_vector_str(arr[:, 0]), npchar.add(",", _vector_str(arr[:, 1])))
-    
+
     @staticmethod
     def TAD_boundaries(arr):
         """
         Returns TAD unique boundaries.
         """
         return np.unique(np.append(arr[:, 0], arr[:, 1]))
-    
+
     @staticmethod
     def jaccard_index(arr1, arr2):
         """
@@ -72,7 +71,7 @@ class GenomicRanges(object):
         """
         intersection = np.isin(arr1, arr2)
         return sum(intersection) / (arr1.shape[0] + arr2.shape[0] - sum(intersection))
-    
+
     @staticmethod
     def overlap_coef(arr1, arr2):
         """
@@ -81,14 +80,14 @@ class GenomicRanges(object):
         """
         intersection = np.isin(arr1, arr2)
         return sum(intersection) / min(arr1.shape[0], arr2.shape[0])
-    
+
     @staticmethod
     def TPR(arr1, arr2):
         """
         Calculate TPR of arr2 in arr1.
         """
         return sum(np.isin(arr1, arr2)) / arr2.shape[0]
-    
+
     @staticmethod
     def FDR(arr1, arr2):
         """
@@ -103,8 +102,7 @@ class GenomicRanges(object):
         2d arrays with given identity regarding the first array.
         Asymmetrical!
         """
-        mask1 = np.zeros(arr1.shape[0], dtype=bool)
-        mask2 = np.zeros(arr2.shape[0], dtype=bool)
+        list_intersecting = list()
         i, k = 0, 0
         while i < arr1.shape[0] and k < arr2.shape[0]:
             if arr1[i, 0] >= arr2[k, 1]:
@@ -112,12 +110,15 @@ class GenomicRanges(object):
             elif arr1[i, 1] <= arr2[k, 0]:
                 i += 1
             else:
-                intersecting = min(arr1[i, 1], arr2[k, 1]) - max(arr1[i, 0], arr2[k, 0]) + 1
-                if (intersecting / (arr1[i, 1] - arr1[i, 0] + 1)) >= ident:
-                    mask1[i], mask2[k] = True, True
-                k += 1
-        return mask1, mask2
-    
+                intersection = min(arr1[i, 1], arr2[k, 1]) - max(arr1[i, 0], arr2[k, 0]) + 1
+                if (intersection / (arr1[i, 1] - arr1[i, 0] + 1)) >= ident:
+                    list_intersecting.append([arr1[i, :], arr2[k, :]])
+                if arr1[i, 1] < arr2[k, 1]:
+                    i += 1
+                else:
+                    k += 1
+        return np.array(list_intersecting)
+
     @staticmethod
     def make_offset(arr1, arr2, offset=1):
         """
@@ -188,16 +189,19 @@ class GenomicRanges(object):
 
         else:
             raise Exception('Coefficient not understood: {}'.format(coef))
-    
+
     def count_shared(self, other, ident=1):
         """
         Return share of shared TADs regarding the first range with given identity.
         Asymmetrical!
         """
-        shared1, shared2 = map(sum, GenomicRanges.find_intersect(self.data, other.data, ident=ident))
-        # TODO: consider the formulae.
-        return shared1 / (self.length + other.length - shared1)
-    
+        intersected = GenomicRanges.find_intersect(self.data, other.data, ident=ident)
+        amount_shared = intersected.shape[0]
+        shared_1 = np.unique(GenomicRanges.TAD_bins(intersected[:, 0, :])).shape[0]
+        # TODO: consider the formula.
+        return amount_shared / (self.length + other.length - shared_1)
+
+    # TODO: tests
     def find_closest(self, other, mode='boundariwise'):
         """
         Find closest feature in other for each feature
@@ -207,19 +211,41 @@ class GenomicRanges(object):
         boundaries in other.
         Return arrays of indexes.
         """
+        v1 = np.copy(self.data)
+        v2 = np.copy(other.data)
         if mode == 'boundariwise':
-            v1 = np.copy(self.data)
-            v2 = np.copy(other.data)
             ind_end = [np.unravel_index(*[func(np.abs(v2 - i)) for func in (np.argmin, np.shape)])  for i in v1[:, 1]]
             ind_start = [np.unravel_index(*[func(np.abs(v2 - i)) for func in (np.argmin, np.shape)])  for i in v1[:, 0]]
             return np.array([ind_start, ind_end], dtype=int)
-            
+
         elif mode == 'binwise':
-            pass
-        
+            left_closest = [k if k >= 0 else 0 for k in [sum(v2[:, 1] <= i[0]) - 1 for i in v1]]
+            right_closest = [k if k >= 0 else v2.shape[0] - 1 for k in [sum(v2[:, 0] >= i[1]) - 1 for i in v1]]
+            indexes = np.zeros(v1.shape, dtype=int)
+            for coord1, coords2 in enumerate(zip(left_closest, right_closest)):
+                left_coord, right_coord = coords2
+                diff = right_coord - left_coord
+                if diff <= 1:
+                    if v1[coord1, 0] == v2[left_coord, 0]:
+                        indexes[coord1, :] = left_coord, 2
+                    elif v1[coord1, 1] == v2[right_coord, 1]:
+                        indexes[coord1, :] = right_coord, 2
+                    elif v1[coord1, 0] < v2[left_coord, 1]:
+                        indexes[coord1, :] = left_coord, 2
+                    elif v1[coord1, 1] > v2[right_coord, 0]:
+                        indexes[coord1, :] = right_coord, 2
+                    elif v1[coord1, 0] - v2[left_coord, 1] < v1[coord1, 1] - v2[right_coord, 0]:
+                        indexes[coord1, :] = left_coord, 1
+                    else:
+                        indexes[coord1, :] = right_coord, 0
+                else:
+                    indexes[coord1, :] = left_coord + 1, 2
+            return indexes
+
         else:
             raise Exception("The mode isn't understood: {}".format(mode))
-        
+
+    # TODO: tests
     def dist_closest(self, other, mode='boundariwise'):
         """
         Find distances to closest features in other for each
@@ -232,10 +258,15 @@ class GenomicRanges(object):
             dist_end =  np.array([other.data[i[0], i[1]] for i in ind_end]) - self.data[:, 1]
             return np.vstack((dist_start, dist_end)).T
         elif mode == 'binwise':
-            pass
+            indexes = self.find_closest(other, mode=mode)
+            distances = np.zeros(indexes.shape[0], dtype=int)
+            mask_zeros = indexes[:, 1] < 2
+            closest = np.array([v2[i[0], i[1]] for i in indexes[mask_zeros]], dtype=int)
+            boundaries = np.array([v1[i, 0] if indexes[i, 1] == 1 else v1[i, 1] for i in range(v1.shape[0])], dtype=int)
+            distances[mask_zeros] = boundaries[mask_zeros] - closest
+            return distances
         else:
             raise Exception("The mode isn't understood: {}".format(mode))
-
 
 # TODO: test this.
 def load_BED(filename):
