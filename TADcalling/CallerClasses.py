@@ -16,7 +16,7 @@ class BaseCaller(object):
         """
         Initialize base TAD caller
 
-        :param datasets_labels (:obj:`list`): short names of files that need to be processed
+        :param datasets_labels (:obj:`list`): short names of files that are needed to be processed
         :param datasets_files (:obj:`list`): names of files with intra-chromosomal chromatin interaction maps
         :param data_format (:obj:`str`): format of input files ('cool', 'txt', 'txt.gz')
         :param kwargs:
@@ -28,13 +28,13 @@ class BaseCaller(object):
             * metadata (:obj:`dict`): optional metadata dict, default is empty dict
 
             Object of BaseCaller type or derivative has two attributes:
-            self._metadata -- metadata, fict with 'assembly', 'chr','resolution', 'labels', 'balance' keys
+            self._metadata -- metadata, dict with 'assembly', 'chr','resolution', 'labels', 'balance' keys
             self._segmentations -- dictionary with segmentations for all the files
         """
 
         logger.debug("Initializing from files: %s", str(datasets_files))
 
-        assert len(datasets_labels)==len(datasets_files)
+        assert len(datasets_labels) == len(datasets_files)
 
         metadata = kwargs.get('metadata', {})
         if not isinstance(metadata, dict):
@@ -57,7 +57,7 @@ class BaseCaller(object):
 
     def convert_files(self, data_format, **kwargs):
         """
-        Converting nput files into required format.
+        Converting Input files into required format.
         :param data_format: format of resulting files ('cool', 'txt', 'txt.gz')
         :param kwargs: Optional parameters for data coversion
         :return: None
@@ -69,22 +69,25 @@ class BaseCaller(object):
         ch = self._metadata['chr']
 
         resulting_files = []
-        if original_format=='cool' and 'txt' in data_format:
+        if original_format == 'cool' and 'txt' in data_format:
             for f in self._metadata['files_cool']:
                 output_prefix = '.'.join(f.split('.')[:-1])
-                output_file = output_prefix+'.{}.txt'.format(ch)
+                output_file = output_prefix + '.{}.txt'.format(ch)
 
                 c = cooler.Cooler(f)
                 mtx = c.matrix(balance=self._metadata['balance'], as_pixels=False).fetch(ch, self._metadata['chr'])
 
                 np.savetxt(output_file, mtx, delimiter='\t')
+
+                if 'gz' in data_format:
+                    subprocess.call('gzip {}'.format(output_name), shell=true)
+                    output_name += ".gz"
+
                 resulting_files.append(output_name)
 
-            if 'gz' in data_format:
-                subprocess.call('gzip {}'.format(output_name), shell=true)
-
-        elif 'txt' in original_format and data_format=='cool':
+        elif 'txt' in original_format and data_format == 'cool':
             # TODO implement this option
+            # https://github.com/hms-dbmi/higlass/issues/100#issuecomment-302183312
             logger.error('Option currently not importmented!')
 
         self._metadata['files_{}'.format(data_format)] = resulting_files
@@ -92,15 +95,14 @@ class BaseCaller(object):
 
     def call(self, params):
         """
-        Basic function of BaseCaller to call the segmentation (and writ eit to file or to memory
+        Basic function of BaseCaller to call the segmentation (and write it to file or to RAM)
         :param params: set of calling parameters
         :return: dict (ordered by metadata['labels']) with segmentations (2d np.ndarray) or names of files
         """
         logger.debug("Calling dump BaseCaller segmentation call with params: {}".format(str, params))
-        segmentations = {x: np.empty([0,0]) for x in self._metadata['labels']}
+        segmentations = {x: np.empty([0, 0]) for x in self._metadata['labels']}
         self._load_segmentations(segmentations, params)
-        return
-
+        return  # what?
 
     def _load_segmentations(self, input, params):
         """
