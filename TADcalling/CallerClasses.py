@@ -148,7 +148,7 @@ class LavaburstCaller(BaseCaller):
 
     def call(self, gamma, **kwargs):
 
-        if not 'files_cool' in self._metadata.keys():
+        if 'files_cool' not in self._metadata.keys():
             raise BasicCallerException("No cool file present for caller. Please, perform valid conversion!")
 
         output_dct = {}
