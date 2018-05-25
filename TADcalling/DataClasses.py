@@ -48,6 +48,8 @@ class GenomicRanges(object):
         metadata['resolution'] = metadata.get('resolution', 1000)
         self._metadata = metadata
 
+    # def __repr__()
+
     @staticmethod
     def TAD_bins(arr):
         """

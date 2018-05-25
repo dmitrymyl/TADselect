@@ -82,10 +82,10 @@ class BaseCaller(object):
                 np.savetxt(output_file, mtx, delimiter='\t')
 
                 if 'gz' in data_format:
-                    subprocess.call('gzip {}'.format(output_name), shell=true)
-                    output_name += ".gz"
+                    subprocess.call('gzip {}'.format(output_file), shell=True)
+                    output_file += ".gz"
 
-                resulting_files.append(output_name)
+                resulting_files.append(output_file)
 
         elif 'txt' in original_format and data_format == 'cool':
             # TODO implement this option
@@ -229,7 +229,9 @@ class ArmatusCaller(BaseCaller):
             raise BasicCallerException("No cool file present for caller. Please, perform valid conversion!")
 
         output_dct = {}
-
+        # TODO: somehow redefine via self.convert_files("txt.gz") Or leave it this way, inserting conversion only
+        # where it is needed. Also provide interface to convert matrices with removed diagonals and other modifications.
+        # I'd rather implemented convertion for only one file. Or defined preparation of matrix as a function.
         for label, f in zip(self._metadata['labels'], self._metadata['files_cool']):
             c = cooler.Cooler(f)
             mtx = c.matrix(balance=self._metadata['balance'], as_pixels=False).fetch(self._metadata['chr'], self._metadata['chr'])
@@ -243,7 +245,14 @@ class ArmatusCaller(BaseCaller):
             mtx = np.log(mtx)
             mtx = mtx - np.min(mtx)
 
-            segmentation = self._call_single(mtx, gamma, **kwargs)
+            ch = self._metadata['chr']
+            output_prefix = '.'.join(f.split('.')[:-1])
+            output_file = output_prefix + 'buff' + '.{}.txt'.format(ch)
+            np.savetxt(output_file, mtx, delimiter='\t')
+            subprocess.call('gzip {}'.format(output_file), shell=True)
+            output_file += ".gz"
+
+            segmentation = self._call_single(output_file, gamma, **kwargs)
 
             output_dct[label] = segmentation.copy()
 
@@ -252,7 +261,7 @@ class ArmatusCaller(BaseCaller):
         return self._segmentations
 
 
-    def _call_single(self, mtx, gamma, good_bins='default', max_intertad_size=3, max_tad_size=10000):
+    def _call_single(self, mtx_name, gamma, good_bins='default', max_intertad_size=3, max_tad_size=10000):
         """
         Produces single segmentation (TADs calling) of mtx with one gamma with the algorithm provided.
         :param gamma: parameter for segmentation calling
@@ -262,18 +271,16 @@ class ArmatusCaller(BaseCaller):
         :return:  2D numpy array where segments[:,0] are segment starts and segments[:,1] are segments end, each row corresponding to one segment
         """
 
-        if np.any(np.isnan(mtx)):
-            logger.warning("NaNs in dataset, pease remove them first.")
+        #if np.any(np.isnan(mtx)):
+        #    logger.warning("NaNs in dataset, please remove them first.")
 
-        if np.diagonal(mtx).sum() > 0:
-            logger.warning(
-                "Note that diagonal is not removed. you might want to delete it to avoid noisy and not stable results. ")
+        #if np.diagonal(mtx).sum() > 0:
+        #    logger.warning(
+        #        "Note that diagonal is not removed. you might want to delete it to avoid noisy and not stable results. ")
 
-        # TODO: implement CLI via subprocess. Convert matrix to txt.gz, store segmentation in buff.consensus.txt and
-        # extract it with np.loadtxt, then delete chr column
-        # subprocess.run("/armatus -i <input.txt.gz> -g <gamma> -j -o <output buff.txt> -r <resolution>")
-        # segments = np.loadtxt("buff.txt", ndmin=2, dtype=object)
-        # segments = np.array(segments[:, 1:], dtype=int)
+        subprocess.run("armatus -i {} -g {} -j -o buff -r 1".format(mtx_name, gamma), shell=True)
+        segments = np.loadtxt("buff.consensus.txt", ndmin=2, dtype=object)
+        segments = np.array(segments[:, 1:], dtype=int)
         v = segments[:, 1] - segments[:, 0]
         mask = (v > max_intertad_size) & (np.isfinite(v)) & (v < max_tad_size)
 
