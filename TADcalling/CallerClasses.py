@@ -4,6 +4,8 @@ Classes for TAD calling for various tools
 
 from .utils import *
 from .logger import logger
+from .DataClasses import GenomicRanges, load_BED
+from copy import deepcopy
 
 ACCEPTED_FORMATS = ['cool', 'txt', 'txt.gz']
 
@@ -100,7 +102,7 @@ class BaseCaller(object):
         :return: dict (ordered by metadata['labels']) with segmentations (2d np.ndarray) or names of files
         """
         logger.debug("Calling dump BaseCaller segmentation call with params: {}".format(str, params))
-        segmentations = {x: np.empty([0, 0]) for x in self._metadata['labels']}
+        segmentations = {x: GenomicRanges(np.empty([0, 0], dtype=int), data_type="segmentation") for x in self._metadata['labels']}
         self._load_segmentations(segmentations, params)
         return  # what?
 
@@ -124,12 +126,12 @@ class BaseCaller(object):
         self._df = pd.DataFrame(columns=['bgn', 'end', 'label', 'params'])
         for x in self._segmentations.keys():
             for y in self._segmentations[x].keys():
-                lngth = len(self._segmentations[x][y])
+                lngth = self._segmentations[x][y].data.shape[0]
                 df = pd.DataFrame({
-                    'bgn': self._segmentations[x][y][:,0],
-                    'end': self._segmentations[x][y][:,1],
+                    'bgn': self._segmentations[x][y].data[:, 0],
+                    'end': self._segmentations[x][y].data[:, 1],
                     'label': [x for i in range(lngth)],
-                    'params':[str(y) for i in range(lngth)]
+                    'params': [str(y) for i in range(lngth)]
                 })
                 self._df = pd.concat([self._df, df]).copy()
         self._df.bgn = pd.to_numeric(self._df.bgn)
@@ -168,7 +170,7 @@ class LavaburstCaller(BaseCaller):
 
             segmentation = self._call_single(mtx, gamma, **kwargs)
 
-            output_dct[label] = segmentation.copy()
+            output_dct[label] = deepcopy(segmentation)
 
         self._load_segmentations(output_dct, (gamma))
 
@@ -216,7 +218,7 @@ class LavaburstCaller(BaseCaller):
 
         segments = segments[mask]
 
-        return np.array(segments)
+        return GenomicRanges(np.array(segments, dtype=int), data_type='segmentation')
 
 
 class ArmatusCaller(BaseCaller):
