@@ -29,10 +29,10 @@ class GenomicRanges(object):
         buff = np.array(arr_object, dtype=int, ndmin=2)
         if buff.shape[1] == 2:
             self.data = buff
-            self.count = np.full_like(self.data[:, 0], 1, dtype=int)
+            self.coverage = np.full_like(self.data[:, 0], 1, dtype=int)
         elif buff.shape[1] == 3:
             self.data = buff[:, 0:1]
-            self.count = buff[:, 2]
+            self.coverage = buff[:, 2]
         else:
             raise Exception("Shape of arr_object is not as required.")
 
@@ -48,7 +48,8 @@ class GenomicRanges(object):
         metadata['resolution'] = metadata.get('resolution', 1000)
         self._metadata = metadata
 
-    # def __repr__()
+    def __repr__(self):
+        return '\n'.join(['\t'.join([str(self.data[i, 0]), str(self.data[i, 1]), str(self.coverage[i])]) for i in range(self.length)])
 
     @staticmethod
     def TAD_bins(arr):
@@ -130,6 +131,7 @@ class GenomicRanges(object):
         """
         v1 = arr1.copy()
         v2 = arr2.copy()
+
         def cutzeros(i, offset):
             return i if abs(i) <= offset else 0
 
@@ -256,8 +258,8 @@ class GenomicRanges(object):
         indexes = self.find_closest(other, mode=mode)
         if mode == 'boundariwise':
             ind_start, ind_end = indexes
-            dist_start =  np.array([other.data[i[0], i[1]] for i in ind_start]) - self.data[:, 0]
-            dist_end =  np.array([other.data[i[0], i[1]] for i in ind_end]) - self.data[:, 1]
+            dist_start = np.array([other.data[i[0], i[1]] for i in ind_start]) - self.data[:, 0]
+            dist_end = np.array([other.data[i[0], i[1]] for i in ind_end]) - self.data[:, 1]
             return np.vstack((dist_start, dist_end)).T
         elif mode == 'binwise':
             indexes = self.find_closest(other, mode=mode)
