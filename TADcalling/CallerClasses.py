@@ -9,8 +9,10 @@ from copy import deepcopy
 
 ACCEPTED_FORMATS = ['cool', 'txt', 'txt.gz']
 
+
 class BasicCallerException(Exception):
     pass
+
 
 class BaseCaller(object):
 
@@ -55,56 +57,112 @@ class BaseCaller(object):
 
         self._metadata = metadata
 
-        self._segmentations = {x:{} for x in datasets_labels}
+        self._segmentations = {x: {} for x in datasets_labels}
+
+    def tune_matrix(self, input_mtx, remove_diagonal=True, fill_nans=True, undercut=True):
+        """
+        Tunes 2d matrix according to kwargs. Returns tuned matrix.
+        :param input_mtx: input 2d matrix
+        :param remove_diagonal: whether to remove diagonal or not (default True)
+        :param fill_nans: fill NaNs with 0 if presented (default True)
+        :param undercut: perform other tuning operations
+        """
+        mtx = input_mtx.copy()
+
+        if fill_nans:
+            mtx[np.isnan(mtx)] = 0
+
+        if remove_diagonal:
+            np.fill_diagonal(mtx, 0)
+
+        if undercut:
+            mn = np.percentile(mtx[mtx > 0], 1)
+            mx = np.percentile(mtx[mtx > 0], 99)
+            mtx[mtx <= mn] = mn
+            mtx[mtx >= mx] = mx
+            mtx = np.log(mtx)
+            mtx = mtx - np.min(mtx)
+
+        return mtx
+
+    def convert_file(self, input_filename=None, input_format=None,
+                     mtx=None, output_format='txt', **kwargs):
+        """
+        Convert one file or matrix into required format.
+        """
+        tune = kwargs.get('tune', False)
+        balance = kwargs.get('balance', True)
+        as_pixels = kwargs.get('as_pixels', False)
+        ch = kwargs.get('ch', 'chr1')
+
+        if input_filename and input_format:
+            if input_format == 'cool' and 'txt' in output_format:
+                output_prefix = '.'.join(input_filename.split('.')[:-1])
+                output_filename = output_prefix + '.{}.txt'.format(ch)
+
+                c = cooler.Cooler(input_filename)
+                mtx = c.matrix(balance=balance, as_pixels=as_pixels).fetch(ch, ch)
+
+                if tune:
+                    mtx = self.tune_matrix(mtx)
+
+                np.savetxt(output_filename, mtx, delimiter='\t')
+
+                if 'gz' in output_format:
+                    subprocess.call('gzip {}'.format(output_filename), shell=True)
+                    output_filename += '.gz'
+
+                return output_filename
+
+            elif 'txt' in input_format and output_format == 'cool':
+                # TODO implement this option
+                # https://github.com/hms-dbmi/higlass/issues/100#issuecomment-302183312
+                logger.error('Option currently not importmented!')
+
+        elif mtx:
+            if tune:
+                mtx = self.tune_matrix(mtx)
+
+                if 'txt' in output_format:
+                    np.savetxt(output_filename, mtx, delimiter='\t')
+
+                    if 'gz' in output_format:
+                        subprocess.call('gzip {}'.format(output_filename), shell=True)
+                        output_filename += '.gz'
+
+                elif output_format == 'cool':
+                    logger.error('Option currently not importmented!')
+
+            return output_filename
+
+        else:
+            raise Exception("Neither input filename nor matrix are presented.")
 
     def convert_files(self, data_format, **kwargs):
         """
-        Converting Input files into required format.
+        Converts input files into required format.
         :param data_format: format of resulting files ('cool', 'txt', 'txt.gz')
         :param kwargs: Optional parameters for data coversion
         :return: None
         """
+        tune = kwargs.get('tune', False)
+        as_pixels = kwargs.get('as_pixels', False)
 
         assert data_format in ACCEPTED_FORMATS
 
         original_format = self._metadata['data_formats'][0]
-        ch = self._metadata['chr']
 
         resulting_files = []
-        if original_format == 'cool' and 'txt' in data_format:
-            for f in self._metadata['files_cool']:
-                output_prefix = '.'.join(f.split('.')[:-1])
-                output_file = output_prefix + '.{}.txt'.format(ch)
-
-                c = cooler.Cooler(f)
-                mtx = c.matrix(balance=self._metadata['balance'], as_pixels=False).fetch(ch, self._metadata['chr'])
-
-                np.savetxt(output_file, mtx, delimiter='\t')
-
-                if 'gz' in data_format:
-                    subprocess.call('gzip {}'.format(output_file), shell=True)
-                    output_file += ".gz"
-
-                resulting_files.append(output_file)
-
-        elif 'txt' in original_format and data_format == 'cool':
-            # TODO implement this option
-            # https://github.com/hms-dbmi/higlass/issues/100#issuecomment-302183312
-            logger.error('Option currently not importmented!')
+        file_holder = 'files_{}'.format(original_format)
+        param_dict = {'tune': tune, 'balance': self._metadata['balance'],
+                      'as_pixels': as_pixels, 'ch': self._metadata['chr']}
+        for f in self._metadata[file_holder]:
+            output_fname = self.convert_file(input_filename=f, input_format=original_format,
+                                             output_format=data_format, **param_dict)
+            resulting_files.append(output_fname)
 
         self._metadata['files_{}'.format(data_format)] = resulting_files
         self._metadata['data_formats'].append(data_format)
-
-    def call(self, params):
-        """
-        Basic function of BaseCaller to call the segmentation (and write it to file or to RAM)
-        :param params: set of calling parameters
-        :return: dict (ordered by metadata['labels']) with segmentations (2d np.ndarray) or names of files
-        """
-        logger.debug("Calling dump BaseCaller segmentation call with params: {}".format(str, params))
-        segmentations = {x: GenomicRanges(np.empty([0, 0], dtype=int), data_type="segmentation") for x in self._metadata['labels']}
-        self._load_segmentations(segmentations, params)
-        return  # what?
 
     def _load_segmentations(self, input, params):
         """
@@ -117,6 +175,17 @@ class BaseCaller(object):
 
         for x in self._metadata['labels']:
             self._segmentations[x][params] = input[x]
+
+    def call(self, params):
+        """
+        Basic function of BaseCaller to call the segmentation (and write it to file or to RAM)
+        :param params: set of calling parameters
+        :return: dict (ordered by metadata['labels']) with segmentations (2d np.ndarray) or names of files
+        """
+        logger.debug("Calling dump BaseCaller segmentation call with params: {}".format(str, params))
+        segmentations = {x: GenomicRanges(np.empty([0, 0], dtype=int), data_type="segmentation") for x in self._metadata['labels']}
+        self._load_segmentations(segmentations, params)
+        return  # what?
 
     def segmentation2df(self):
         """
@@ -138,17 +207,18 @@ class BaseCaller(object):
         self._df.end = pd.to_numeric(self._df.end)
         return self._df
 
+
 class LavaburstCaller(BaseCaller):
 
-# Example run:
-# from CallerClasses import *
-# lc = LavaburstCaller(['S2'], ['../data/S2.20000.cool'], 'cool', assembly='dm3', resolution=20000, balance=True, chr='chr2L')
-# lc.call(0.9)
-# lc.call(1.9)
-# df = lc.segmentation2df()
-#
+    # Example run:
+    # from CallerClasses import *
+    # lc = LavaburstCaller(['S2'], ['../data/S2.20000.cool'], 'cool', assembly='dm3', resolution=20000, balance=True, chr='chr2L')
+    # lc.call(0.9)
+    # lc.call(1.9)
+    # df = lc.segmentation2df()
+    #
 
-    def call(self, gamma, **kwargs):
+    def call(self, gamma, tune=True, **kwargs):
 
         if 'files_cool' not in self._metadata.keys():
             raise BasicCallerException("No cool file present for caller. Please, perform valid conversion!")
@@ -159,17 +229,10 @@ class LavaburstCaller(BaseCaller):
             c = cooler.Cooler(f)
             mtx = c.matrix(balance=self._metadata['balance'], as_pixels=False).fetch(self._metadata['chr'], self._metadata['chr'])
 
-            mtx[np.isnan(mtx)] = 0
-            np.fill_diagonal(mtx, 0)
-            mn = np.percentile(mtx[mtx > 0], 1)
-            mx = np.percentile(mtx[mtx > 0], 99)
-            mtx[mtx <= mn] = mn
-            mtx[mtx >= mx] = mx
-            mtx = np.log(mtx)
-            mtx = mtx - np.min(mtx)
+            if tune:
+                mtx = self.tune_matrix(mtx)
 
             segmentation = self._call_single(mtx, gamma, **kwargs)
-
             output_dct[label] = deepcopy(segmentation)
 
         self._load_segmentations(output_dct, (gamma))
@@ -223,43 +286,20 @@ class LavaburstCaller(BaseCaller):
 
 class ArmatusCaller(BaseCaller):
 
-    def call(self, gamma, **kwargs):
-
-        if 'files_cool' not in self._metadata.keys():
-            raise BasicCallerException("No cool file present for caller. Please, perform valid conversion!")
+    def call(self, gamma, tune=True, **kwargs):
 
         output_dct = {}
-        # TODO: somehow redefine via self.convert_files("txt.gz") Or leave it this way, inserting conversion only
-        # where it is needed. Also provide interface to convert matrices with removed diagonals and other modifications.
-        # I'd rather implemented convertion for only one file. Or defined preparation of matrix as a function.
-        for label, f in zip(self._metadata['labels'], self._metadata['files_cool']):
-            c = cooler.Cooler(f)
-            mtx = c.matrix(balance=self._metadata['balance'], as_pixels=False).fetch(self._metadata['chr'], self._metadata['chr'])
 
-            mtx[np.isnan(mtx)] = 0
-            np.fill_diagonal(mtx, 0)
-            mn = np.percentile(mtx[mtx > 0], 1)
-            mx = np.percentile(mtx[mtx > 0], 99)
-            mtx[mtx <= mn] = mn
-            mtx[mtx >= mx] = mx
-            mtx = np.log(mtx)
-            mtx = mtx - np.min(mtx)
+        if 'files_txt.gz' not in self._metadata.keys():
+            self.convert_files('txt.gz', tune=True)
 
-            ch = self._metadata['chr']
-            output_prefix = '.'.join(f.split('.')[:-1])
-            output_file = output_prefix + 'buff' + '.{}.txt'.format(ch)
-            np.savetxt(output_file, mtx, delimiter='\t')
-            subprocess.call('gzip {}'.format(output_file), shell=True)
-            output_file += ".gz"
-
-            segmentation = self._call_single(output_file, gamma, **kwargs)
-
+        for label, f in zip(self._metadata['labels'], self._metadata['files_txt.gz']):
+            segmentation = self._call_single(f, gamma, **kwargs)
             output_dct[label] = segmentation.copy()
 
         self._load_segmentations(output_dct, (gamma))
 
         return self._segmentations
-
 
     def _call_single(self, mtx_name, gamma, good_bins='default', max_intertad_size=3, max_tad_size=10000):
         """
@@ -270,13 +310,6 @@ class ArmatusCaller(BaseCaller):
         :param max_intertad_size: max size of segmentation unit that is considered as interTAD
         :return:  2D numpy array where segments[:,0] are segment starts and segments[:,1] are segments end, each row corresponding to one segment
         """
-
-        #if np.any(np.isnan(mtx)):
-        #    logger.warning("NaNs in dataset, please remove them first.")
-
-        #if np.diagonal(mtx).sum() > 0:
-        #    logger.warning(
-        #        "Note that diagonal is not removed. you might want to delete it to avoid noisy and not stable results. ")
 
         subprocess.run("armatus -i {} -g {} -j -o buff -r 1".format(mtx_name, gamma), shell=True)
         segments = np.loadtxt("buff.consensus.txt", ndmin=2, dtype=object)
