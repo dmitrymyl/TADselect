@@ -5,6 +5,7 @@ Classes for TAD calling for various tools
 from .utils import *
 from .logger import logger
 from .DataClasses import GenomicRanges, load_BED
+from .templates import hicseg_template
 from copy import deepcopy
 import numpy as np
 import pandas as pd
@@ -296,11 +297,11 @@ class ArmatusCaller(BaseCaller):
         output_dct = {}
 
         if 'files_txt.gz' not in self._metadata.keys():
-            self.convert_files('txt.gz', tune=True)
+            self.convert_files('txt.gz', tune=tune)
 
         for label, f in zip(self._metadata['labels'], self._metadata['files_txt.gz']):
             segmentation = self._call_single(f, gamma, **kwargs)
-            output_dct[label] = segmentation.copy()
+            output_dct[label] = deepcopy(segmentation)
 
         self._load_segmentations(output_dct, (gamma))
 
@@ -324,7 +325,7 @@ class ArmatusCaller(BaseCaller):
 
         segments = segments[mask]
 
-        return np.array(segments)
+        return GenomicRanges(np.array(segments, dtype=int), data_type='segmentation')
 
 
 class InsulationCaller(BaseCaller):
@@ -429,6 +430,45 @@ class DirectionalityCaller(BaseCaller):
         tads = tadtool.tad.call_tads_directionality_index(ii, cutoff, regions=regions)
         segments = np.array([[some_tad.start - 1, some_tad.end] for some_tad in tads], dtype=int)
 
+        v = segments[:, 1] - segments[:, 0]
+        mask = (v > max_intertad_size) & (np.isfinite(v)) & (v < max_tad_size)
+
+        segments = segments[mask]
+
+        return GenomicRanges(np.array(segments, dtype=int), data_type='segmentation')
+
+
+class HiCsegCaller(BaseCaller):
+
+    def call(self, tune=True, distr_model="P", **kwargs):
+
+        output_dct = {}
+
+        if 'files_txt' not in self._metadata.keys():
+            self.convert_files('txt', tune=tune)
+
+        for label, f in zip(self._metadata['labels'], self._metadata['files_txt']):
+            segmentation = self._call_single(f, distr_model, **kwargs)
+            output_dct[label] = deepcopy(segmentation)
+
+        self._load_segmentations(output_dct, (distr_model))
+
+        return self._segmentations
+
+    def _call_single(self, mtx_name, distr_model, good_bins='default', max_intertad_size=3, max_tad_size=10000):
+        """
+        Produces single segmentation (TADs calling) of mtx with one gamma with the algorithm provided.
+        :param gamma: parameter for segmentation calling
+        :param good_bins: bool vector with length of len(mtx) with False corresponding to masked bins, 'default' is that
+            good bins are all columns/rows with sum > 0
+        :param max_intertad_size: max size of segmentation unit that is considered as interTAD
+        :return:  2D numpy array where segments[:,0] are segment starts and segments[:,1] are segments end, each row corresponding to one segment
+        """
+        hicseg_script = hicseg_template.format(mtx_name, distr_model, 1, 'output_hicseg.txt')
+        with open('hicseg_script.R', "w") as hicseg_script_file:
+            hicseg_script_file.write(hicseg_script)
+        subprocess.run("Rscript hicseg_script.R", shell=True)
+        segments = np.loadtxt("output_hicseg.txt", ndmin=2, dtype=int)
         v = segments[:, 1] - segments[:, 0]
         mask = (v > max_intertad_size) & (np.isfinite(v)) & (v < max_tad_size)
 
