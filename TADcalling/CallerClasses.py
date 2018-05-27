@@ -6,6 +6,11 @@ from .utils import *
 from .logger import logger
 from .DataClasses import GenomicRanges, load_BED
 from copy import deepcopy
+import numpy as np
+import pandas as pd
+import cooler
+import lavaburst
+import tadtool.tad
 
 ACCEPTED_FORMATS = ['cool', 'txt', 'txt.gz']
 
@@ -218,7 +223,7 @@ class LavaburstCaller(BaseCaller):
     # df = lc.segmentation2df()
     #
 
-    def call(self, gamma, tune=True, **kwargs):
+    def call(self, gamma, tune=True, method='armatus', **kwargs):
 
         if 'files_cool' not in self._metadata.keys():
             raise BasicCallerException("No cool file present for caller. Please, perform valid conversion!")
@@ -232,7 +237,7 @@ class LavaburstCaller(BaseCaller):
             if tune:
                 mtx = self.tune_matrix(mtx)
 
-            segmentation = self._call_single(mtx, gamma, **kwargs)
+            segmentation = self._call_single(mtx, gamma, method=method, **kwargs)
             output_dct[label] = deepcopy(segmentation)
 
         self._load_segmentations(output_dct, (gamma))
@@ -320,3 +325,113 @@ class ArmatusCaller(BaseCaller):
         segments = segments[mask]
 
         return np.array(segments)
+
+
+class InsulationCaller(BaseCaller):
+
+    def call(self, window, cutoff, tune=True, **kwargs):
+
+        if 'files_cool' not in self._metadata.keys():
+            raise BasicCallerException("No cool file present for caller. Please, perform valid conversion!")
+
+        output_dct = {}
+
+        for label, f in zip(self._metadata['labels'], self._metadata['files_cool']):
+            c = cooler.Cooler(f)
+            mtx = c.matrix(balance=self._metadata['balance'], as_pixels=False).fetch(self._metadata['chr'], self._metadata['chr'])
+
+            if tune:
+                mtx = self.tune_matrix(mtx)
+
+            segmentation = self._call_single(mtx, window, cutoff, **kwargs)
+            output_dct[label] = deepcopy(segmentation)
+
+        self._load_segmentations(output_dct, (window, cutoff)) # TODO: make it available to deploy two parameters
+
+        return self._segmentations
+
+    def _call_single(self, mtx, window, cutoff, good_bins='default', max_intertad_size=3, max_tad_size=10000):
+        """
+        Produces single segmentation (TADs calling) of mtx with one gamma with the algorithm provided.
+        :param gamma: parameter for segmentation calling
+        :param good_bins: bool vector with length of len(mtx) with False corresponding to masked bins, 'default' is that
+            good bins are all columns/rows with sum > 0
+        :param method: 'modularity', 'variance', 'corner' or 'armatus' (defalut)
+        :param max_intertad_size: max size of segmentation unit that is considered as interTAD
+        :return:  2D numpy array where segments[:,0] are segment starts and segments[:,1] are segments end, each row corresponding to one segment
+        """
+
+        if np.any(np.isnan(mtx)):
+            logger.warning("NaNs in dataset, pease remove them first.")
+
+        if np.diagonal(mtx).sum() > 0:
+            logger.warning(
+                "Note that diagonal is not removed. you might want to delete it to avoid noisy and not stable results. ")
+
+        regions = [tadtool.tad.GenomicRegion(chromosome='', start=i, end=i) for i in range(mtx.shape[0])]
+
+        ii = tadtool.tad.insulation_index(mtx, regions, window_size=window)
+        tads = tadtool.tad.call_tads_insulation_index(ii, cutoff, regions=regions)
+        segments = np.array([[some_tad.start - 1, some_tad.end] for some_tad in tads], dtype=int)
+
+        v = segments[:, 1] - segments[:, 0]
+        mask = (v > max_intertad_size) & (np.isfinite(v)) & (v < max_tad_size)
+
+        segments = segments[mask]
+
+        return GenomicRanges(np.array(segments, dtype=int), data_type='segmentation')
+
+
+class DirectionalityCaller(BaseCaller):
+
+    def call(self, window, cutoff, tune=True, **kwargs):
+
+        if 'files_cool' not in self._metadata.keys():
+            raise BasicCallerException("No cool file present for caller. Please, perform valid conversion!")
+
+        output_dct = {}
+
+        for label, f in zip(self._metadata['labels'], self._metadata['files_cool']):
+            c = cooler.Cooler(f)
+            mtx = c.matrix(balance=self._metadata['balance'], as_pixels=False).fetch(self._metadata['chr'], self._metadata['chr'])
+
+            if tune:
+                mtx = self.tune_matrix(mtx)
+
+            segmentation = self._call_single(mtx, window, cutoff, **kwargs)
+            output_dct[label] = deepcopy(segmentation)
+
+        self._load_segmentations(output_dct, (window, cutoff)) # TODO: make it available to deploy two parameters
+
+        return self._segmentations
+
+    def _call_single(self, mtx, window, cutoff, good_bins='default', max_intertad_size=3, max_tad_size=10000):
+        """
+        Produces single segmentation (TADs calling) of mtx with one gamma with the algorithm provided.
+        :param gamma: parameter for segmentation calling
+        :param good_bins: bool vector with length of len(mtx) with False corresponding to masked bins, 'default' is that
+            good bins are all columns/rows with sum > 0
+        :param method: 'modularity', 'variance', 'corner' or 'armatus' (defalut)
+        :param max_intertad_size: max size of segmentation unit that is considered as interTAD
+        :return:  2D numpy array where segments[:,0] are segment starts and segments[:,1] are segments end, each row corresponding to one segment
+        """
+
+        if np.any(np.isnan(mtx)):
+            logger.warning("NaNs in dataset, pease remove them first.")
+
+        if np.diagonal(mtx).sum() > 0:
+            logger.warning(
+                "Note that diagonal is not removed. you might want to delete it to avoid noisy and not stable results. ")
+
+        regions = [tadtool.tad.GenomicRegion(chromosome='', start=i, end=i) for i in range(mtx.shape[0])]
+
+        ii = tadtool.tad.directionality_index(mtx, regions, window_size=window)
+        tads = tadtool.tad.call_tads_directionality_index(ii, cutoff, regions=regions)
+        segments = np.array([[some_tad.start - 1, some_tad.end] for some_tad in tads], dtype=int)
+
+        v = segments[:, 1] - segments[:, 0]
+        mask = (v > max_intertad_size) & (np.isfinite(v)) & (v < max_tad_size)
+
+        segments = segments[mask]
+
+        return GenomicRanges(np.array(segments, dtype=int), data_type='segmentation')
