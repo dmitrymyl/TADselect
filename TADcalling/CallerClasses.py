@@ -475,3 +475,7 @@ class HiCsegCaller(BaseCaller):
         segments = segments[mask]
 
         return GenomicRanges(np.array(segments, dtype=int), data_type='segmentation')
+
+
+class MrTADFinderCaller(BaseCaller):
+    pass
