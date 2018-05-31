@@ -13,7 +13,7 @@ import cooler
 import lavaburst
 import tadtool.tad
 
-ACCEPTED_FORMATS = ['cool', 'txt', 'txt.gz']
+ACCEPTED_FORMATS = ['cool', 'txt', 'txt.gz', 'sparse']
 
 
 class BasicCallerException(Exception):
@@ -100,6 +100,7 @@ class BaseCaller(object):
         balance = kwargs.get('balance', True)
         as_pixels = kwargs.get('as_pixels', False)
         ch = kwargs.get('ch', 'chr1')
+        res = kwargs.get('res', 20000)
 
         if input_filename and input_format:
             if input_format == 'cool' and 'txt' in output_format:
@@ -117,6 +118,27 @@ class BaseCaller(object):
                 if 'gz' in output_format:
                     subprocess.call('gzip {}'.format(output_filename), shell=True)
                     output_filename += '.gz'
+
+                return output_filename
+
+            elif input_format == 'cool' and 'sparse' in output_format:
+                output_prefix = '.'.join(input_filename.split('.')[:-1])
+                output_filename = output_prefix + '.{}.sparse.txt'.format(ch)
+
+                c = cooler.Cooler(input_filename)
+                mtx = c.matrix(balance=True, as_pixels=as_pixels).fetch(ch, ch)
+                mtx.loc[:, "bin1_id":"bin2_id"] += 1
+
+                mtx.loc[:, 'bin1_id':'count'].to_csv(output_filename, header=False, index=False, sep='\t')
+
+                max_bin = mtx.loc[:, 'bin1_id':'bin2_id'].max().max()
+
+                with open(output_prefix + ".{}.genome_bin.txt".format(ch), 'w') as outfile:
+                    outfile.write("1\tchr1\t0\t{}".format(max_bin - 1))
+
+                with open(output_prefix + ".{}.all_bins.txt".format(ch), 'w') as outfile:
+                    for i in range(max_bin):
+                        outfile.write("0\t{}\t{}\n".format(i * res + 1, (i + 1) * res))
 
                 return output_filename
 
@@ -161,7 +183,8 @@ class BaseCaller(object):
         resulting_files = []
         file_holder = 'files_{}'.format(original_format)
         param_dict = {'tune': tune, 'balance': self._metadata['balance'],
-                      'as_pixels': as_pixels, 'ch': self._metadata['chr']}
+                      'as_pixels': as_pixels, 'ch': self._metadata['chr'],
+                      'res': self._metadata['resolution']}
         for f in self._metadata[file_holder]:
             output_fname = self.convert_file(input_filename=f, input_format=original_format,
                                              output_format=data_format, **param_dict)
@@ -478,4 +501,40 @@ class HiCsegCaller(BaseCaller):
 
 
 class MrTADFinderCaller(BaseCaller):
-    pass
+
+    def call(self, resolution, tune=False, **kwargs):
+
+        output_dct = {}
+
+        if 'files_sparse' not in self._metadata.keys():
+            self.convert_files('sparse', tune=tune, as_pixels=True)
+
+        for label, f in zip(self._metadata['labels'], self._metadata['files_sparse']):
+            segmentation = self._call_single(f, resolution, **kwargs)
+            output_dct[label] = deepcopy(segmentation)
+
+        self._load_segmentations(output_dct, (gamma))
+
+        return self._segmentations
+
+    def _call_single(self, mtx_name, res, good_bins='default', max_intertad_size=3, max_tad_size=10000):
+        """
+        Produces single segmentation (TADs calling) of mtx with one gamma with the algorithm provided.
+        :param gamma: parameter for segmentation calling
+        :param good_bins: bool vector with length of len(mtx) with False corresponding to masked bins, 'default' is that
+            good bins are all columns/rows with sum > 0
+        :param max_intertad_size: max size of segmentation unit that is considered as interTAD
+        :return:  2D numpy array where segments[:,0] are segment starts and segments[:,1] are segments end, each row corresponding to one segment
+        """
+        # check usage in coomand below
+        # clone MrTADFinder from my fork at https://github.com/dmitrymyl/MrTADFinder.git
+        mtx_prefix = '.'.join(mtx_name.split('.')[:-2])
+        subprocess.run("julia ../MrTADFinder/run_MrTADFinder.jl {} {}.genome_bin.txt {}.all_bins.txt res={} 1 buff_mrtadfinder.txt".format(mtx_name, mtx_prefix, mtx_prefix, res), shell=True)
+        mr_df = pd.read_csv('buff_mrtadfinder.txt')
+        segments = np.array(mr_df.loc[:, "domain_st_bin":"domain_ed_bin"].values, ndmin=2, dtype=int)
+        v = segments[:, 1] - segments[:, 0]
+        mask = (v > max_intertad_size) & (np.isfinite(v)) & (v < max_tad_size)
+
+        segments = segments[mask]
+
+        return GenomicRanges(np.array(segments, dtype=int), data_type='segmentation')
