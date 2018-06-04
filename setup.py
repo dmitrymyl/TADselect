@@ -34,7 +34,7 @@ def get_long_description():
     return _read('README.md')
 
 requirements = [
-                'numpy>=1.14.2',
+                'numpy>=1.12.0',
                 'pandas>=0.22.0',
                 'cooler>=0.7.9',
                 'lavaburst>=0.2.0',

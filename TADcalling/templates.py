@@ -1,4 +1,4 @@
-# parameters are needed to be checked
+# parameters need to be checked
 hicseg_template = "library(HiCseg)\n" \
                   "matrix = as.matrix(read.table(file='{}',sep='\t',header=F,stringsAsFactors=F))\n" \
                   "dim=dim(matrix)\n" \
