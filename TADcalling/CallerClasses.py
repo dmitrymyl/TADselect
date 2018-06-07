@@ -16,7 +16,7 @@ import tadtool.tad
 import lavaburst
 from .templates import hicseg_template
 
-ACCEPTED_FORMATS = ['cool', 'txt', 'txt.gz', 'sparse', 'hic', 'h5']
+ACCEPTED_FORMATS = ['cool', 'txt', 'txt.gz', 'sparse', 'mr_sparse', 'hic', 'h5']
 
 class BasicCallerException(Exception):
     pass
@@ -134,7 +134,7 @@ class BaseCaller(object):
 
                 return output_filename
 
-            elif input_format == 'cool' and 'sparse' in output_format:
+            elif input_format == 'cool' and output_format == 'sparse':
 
                 # Very bad section, needs to be fixed!
 
@@ -149,22 +149,27 @@ class BaseCaller(object):
                     mtx_df = mtx_df.drop('balanced', axis=1)
                     mtx_df = mtx_df.dropna()
                 mtx_df.to_csv(output_filename, index=False, sep='\t', header=False)
-                
-                # print(mtx)
-                # mtx.loc[:, "bin1_id":"bin2_id"] += 1
-                #
-                # mtx.loc[:, 'bin1_id':'count'].to_csv(output_filename, header=False, index=False, sep='\t')
-                #
-                # max_bin = mtx.loc[:, 'bin1_id':'bin2_id'].max().max()
-                #
-                # with open(output_prefix + ".{}.genome_bin.txt".format(ch), 'w') as outfile:
-                #     outfile.write("1\t{}\t0\t{}".format(ch, max_bin - 1))
-                #
-                # with open(output_prefix + ".{}.all_bins.txt".format(ch), 'w') as outfile:
-                #     for i in range(max_bin):
-                #         outfile.write("0\t{}\t{}\n".format(i * res + 1, (i + 1) * res))
 
+                return output_filename
 
+            elif input_format == 'cool' and 'mr_sparse' in output_format:
+                output_prefix = '.'.join(input_filename.split('.')[:-1])
+                output_filename = output_prefix + '.{}.mr_sparse.txt'.format(chromosome)
+
+                c = cooler.Cooler(input_filename)
+                mtx = c.matrix(balance=True, as_pixels=True).fetch(chromosome, chromosome)
+                mtx.loc[:, "bin1_id":"bin2_id"] += 1
+
+                mtx.loc[:, 'bin1_id':'count'].to_csv(output_filename, header=False, index=False, sep='\t')
+
+                max_bin = mtx.loc[:, 'bin1_id':'bin2_id'].max().max()
+
+                with open(output_prefix + ".{}.genome_bin.txt".format(chromosome), 'w') as outfile:
+                    outfile.write("1\tchr1\t0\t{}".format(max_bin - 1))
+
+                with open(output_prefix + ".{}.all_bins.txt".format(chromosome), 'w') as outfile:
+                    for i in range(max_bin):
+                        outfile.write("0\t{}\t{}\n".format(i * resolution + 1, (i + 1) * resolution))
 
                 return output_filename
 
@@ -180,7 +185,7 @@ class BaseCaller(object):
                 run_command(command)
                 return output_filename
 
-            elif input_format=='cool' and output_format=='hic':
+            elif input_format == 'cool' and output_format == 'hic':
 
                 binary_path = kwargs.get('binary_path', 'java')
                 juicer_path = kwargs.get('juicer_path', './juicer_tools.1.8.9_jcuda.0.8.jar')
@@ -294,18 +299,20 @@ class BaseCaller(object):
         :return:
         """
         params_names = self._metadata['params']
-        self._df = pd.DataFrame(columns=['bgn', 'end', 'label', 'caller']+params_names)
+        self._df = pd.DataFrame(columns=['bgn', 'end', 'label', 'caller'] + params_names)
         for x in self._segmentations.keys():
             for y in self._segmentations[x].keys():
-                length = self._segmentations[x][y].data.shape[0]
-                if length==0 or self._segmentations[x][y].data.shape[1]==0:
-                    continue
+                length = self._segmentations[x][y].length
+                if length == 0 or self._segmentations[x][y].data.shape[1] == 0:
+                    continue  # it would be better to store zero segmentations in order to compare
                 dct = {
                     'bgn': self._segmentations[x][y].data[:, 0],
                     'end': self._segmentations[x][y].data[:, 1],
                     'label': [x for i in range(length)],
                     'caller': [self._metadata['caller'] for i in range(length)]
                 }
+                if isinstance(y, int) or isinstance(y, float):
+                    y = [y]
                 for param, value in zip(params_names, y):
                     dct.update({param: value})
 
@@ -430,7 +437,6 @@ class ArmatusCaller(BaseCaller):
             for label, f in zip(self._metadata['labels'], self._metadata['files_txt.gz']):
                 segmentation = self._call_single(f, gamma, **kwargs)
                 output_dct[label] = deepcopy(segmentation)
-
             self._load_segmentations(output_dct, (gamma))
 
         #return self._segmentations
@@ -478,7 +484,6 @@ class InsulationCaller(BaseCaller):
                     output_dct = {label: deepcopy(segmentation)}
 
                     self._load_segmentations(output_dct, (window, cutoff))
-                # TODO: make it available to deploy two parameters -- Done?
 
         #return self._segmentations
 
@@ -543,7 +548,7 @@ class DirectionalityCaller(BaseCaller):
                     segmentation = self._call_single(mtx, window, cutoff, **kwargs)
                     output_dct = {label: deepcopy(segmentation)}
 
-                    self._load_segmentations(output_dct, (window, cutoff)) # TODO: make it available to deploy two parameters
+                    self._load_segmentations(output_dct, (window, cutoff))
 
         #return self._segmentations
 
@@ -614,13 +619,14 @@ class MrTADFinderCaller(BaseCaller):
 
     def call(self, tune=False, **kwargs):
 
+        caller_path = kwargs.get('caller_path', '../MrTADFinder/run_MrTADFinder.jl')
         output_dct = {}
 
-        if 'files_sparse' not in self._metadata.keys():
-            self.convert_files('sparse', tune=tune)
+        if 'files_mr_sparse' not in self._metadata.keys():
+            self.convert_files('mr_sparse', tune=tune)
 
-        for label, f in zip(self._metadata['labels'], self._metadata['files_sparse']):
-            segmentation = self._call_single(f, **kwargs)
+        for label, f in zip(self._metadata['labels'], self._metadata['files_mr_sparse']):
+            segmentation = self._call_single(f, caller_path=caller_path)
             output_dct[label] = deepcopy(segmentation)
 
         self._load_segmentations(output_dct, (gamma))
@@ -628,10 +634,10 @@ class MrTADFinderCaller(BaseCaller):
         #return self._segmentations
 
     def _call_single(self, mtx_name, max_intertad_size=3, max_tad_size=10000,
-                     binary_path='julia', caller_path='../MrTADFinder/run_MrTADFinder.jl', **kwargs):
+                     binary_path='julia', **kwargs):
         # check usage in command below
         # clone MrTADFinder from my fork at https://github.com/dmitrymyl/MrTADFinder.git
-
+        caller_path = kwargs.get('caller_path', '../MrTADFinder/run_MrTADFinder.jl')
         res = self._metadata['resolution']
 
         mtx_prefix = '.'.join(mtx_name.split('.')[:-2])
