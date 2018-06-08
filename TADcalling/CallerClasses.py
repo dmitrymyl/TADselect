@@ -491,7 +491,10 @@ class InsulationCaller(BaseCaller):
         """
         TODO: annotate, is size in bp or in genomic bins?
         TODO add unified approach, where we use bp or bins for all algorithms!
-        :param mtx:
+        BP: will reflect biology, but can get confused when fitting parameters.
+        Bins: do not reflect biology but only properties of given matrix.
+        I'd rather use bp.
+        :param mtx: ndarray Hi-C matrix
         :param window: window size in bp
         :param cutoff:
         :param good_bins:
@@ -509,11 +512,11 @@ class InsulationCaller(BaseCaller):
 
         regions = [tadtool.tad.GenomicRegion(chromosome='', start=i, end=i) for i in range(mtx.shape[0])]
 
-        IS = tadtool.tad.insulation_index(mtx, regions, window_size=window/self._metadata['resolution'])
+        IS = tadtool.tad.insulation_index(mtx, regions, window_size=window / self._metadata['resolution'])
         tads = tadtool.tad.call_tads_insulation_index(IS, cutoff, regions=regions)
         segments = np.array([[some_tad.start - 1, some_tad.end] for some_tad in tads], dtype=int)
 
-        if len(segments)>0:
+        if len(segments) > 0:
             v = segments[:, 1] - segments[:, 0]
             mask = (v > max_intertad_size) & (np.isfinite(v)) & (v < max_tad_size)
             segments = segments[mask]
@@ -563,7 +566,7 @@ class DirectionalityCaller(BaseCaller):
 
         regions = [tadtool.tad.GenomicRegion(chromosome='', start=i, end=i) for i in range(mtx.shape[0])]
 
-        ii = tadtool.tad.directionality_index(mtx, regions, window_size=window/self._metadata['resolution'])
+        ii = tadtool.tad.directionality_index(mtx, regions, window_size=window / self._metadata['resolution'])
         tads = tadtool.tad.call_tads_directionality_index(ii, cutoff, regions=regions)
         segments = np.array([[some_tad.start - 1, some_tad.end] for some_tad in tads], dtype=int)
 
