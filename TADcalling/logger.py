@@ -9,6 +9,7 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logger = logging.getLogger('TADcalling')
 logger.setLevel(logging.getLevelName('DEBUG'))
 
+
 def set_verbosity(level):
     logger.setLevel(logging.getLevelName(level))
 

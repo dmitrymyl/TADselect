@@ -18,8 +18,10 @@ from .templates import hicseg_template
 
 ACCEPTED_FORMATS = ['cool', 'txt', 'txt.gz', 'sparse', 'mr_sparse', 'hic', 'h5']
 
+
 class BasicCallerException(Exception):
     pass
+
 
 class BaseCaller(object):
 
@@ -108,7 +110,6 @@ class BaseCaller(object):
 
         tune = kwargs.get('tune', False)
         balance = kwargs.get('balance', True)
-        #as_pixels = kwargs.get('as_pixels', False)
         chromosome = kwargs.get('chr', self._metadata['chr'])
         resolution = kwargs.get('res', 20000)
         remove_intermediary_files = kwargs.get('remove_intermediary_files', True)
@@ -181,7 +182,8 @@ class BaseCaller(object):
             elif input_format == 'cool' and output_format == 'h5':
                 output_prefix = '.'.join(input_filename.split('.')[:-1])
                 output_filename = output_prefix + '.h5'
-                command = "hicExport --inFile {} --outFileName {} --inputFormat cool --outputFormat h5".format(input_filename, output_filename)
+                command = "hicExport --inFile {} --outFileName {} --inputFormat cool --outputFormat h5"\
+                    .format(input_filename, output_filename)
                 run_command(command)
                 return output_filename
 
@@ -189,7 +191,7 @@ class BaseCaller(object):
 
                 binary_path = kwargs.get('binary_path', 'java')
                 juicer_path = kwargs.get('juicer_path', './juicer_tools.1.8.9_jcuda.0.8.jar')
-                genome      = kwargs.get('genome', 'dm3')
+                genome = kwargs.get('genome', 'dm3')
 
                 output_prefix = '.'.join(input_filename.split('.')[:-1])
                 outfile_hic = "{}.{}.hic".format(output_prefix, chromosome)
@@ -200,12 +202,19 @@ class BaseCaller(object):
                 with open(outfile_tmp, 'w'):
                     pass
 
-                outfile_tmp = self.convert_file(input_filename=input_filename, input_format='cool', output_format='sparse')
+                outfile_tmp = self.convert_file(input_filename=input_filename,
+                                                input_format='cool',
+                                                output_format='sparse')
 
                 command1 = "awk '{{print 0, $1, $2, 0, 0, $4, $5, 1, $7}}' {} > {}".format(outfile_tmp, outfile_txt)
                 command2 = "gzip -f {}".format(outfile_txt)
-                command3 = "{} -Xmx2g -jar {} pre -r {} -c {} {}.gz {} {}".format(binary_path, juicer_path, resolution,
-                                                                                  chromosome, outfile_txt, outfile_hic, genome)
+                command3 = "{} -Xmx2g -jar {} pre -r {} -c {} {}.gz {} {}".format(binary_path,
+                                                                                  juicer_path,
+                                                                                  resolution,
+                                                                                  chromosome,
+                                                                                  outfile_txt,
+                                                                                  outfile_hic,
+                                                                                  genome)
 
                 run_command(command1)
                 run_command(command2)
@@ -242,7 +251,6 @@ class BaseCaller(object):
         :return: None
         """
         tune = kwargs.get('tune', False)
-        #as_pixels = kwargs.get('as_pixels', False)
 
         assert data_format in ACCEPTED_FORMATS
 
@@ -253,7 +261,6 @@ class BaseCaller(object):
         param_dict = {
             'tune': tune,
             'balance': self._metadata['balance'],
-            #'as_pixels': as_pixels,
             'ch': self._metadata['chr'],
             'res': self._metadata['resolution']
         }
@@ -277,7 +284,6 @@ class BaseCaller(object):
         :param params: set of parameters
         :return:
         """
-        logger.debug("Calling dump BaseCaller segmentation loading")
 
         for x in self._metadata['labels']:
             self._segmentations[x][params] = input[x]
@@ -288,26 +294,28 @@ class BaseCaller(object):
         :param params: set of calling parameters
         :return: dict (ordered by metadata['labels']) with segmentations (2d np.ndarray) or names of files
         """
-        logger.debug("Calling dump BaseCaller segmentation call with params: {}".format(str, params))
-        segmentations = {x: GenomicRanges(np.empty([0, 0], dtype=int), data_type="segmentation") for x in self._metadata['labels']}
+        logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params)))
+        segmentations = {x: GenomicRanges(np.empty([0, 0], dtype=int), data_type="segmentation")
+                         for x in self._metadata['labels']}
         self._load_segmentations(segmentations, params)
-        #return segmentations
 
     def segmentation2df(self):
         """
-        Converter of all segmentations to Pandas dataframe.
+        Converter of all the segmentations to Pandas dataframe.
         :return:
         """
+        resolution = self._metadata['resolution']
         params_names = self._metadata['params']
-        self._df = pd.DataFrame(columns=['bgn', 'end', 'label', 'caller'] + params_names)
+        self._df = pd.DataFrame(columns=['bgn', 'end', 'length', 'label', 'caller'] + params_names)
         for x in self._segmentations.keys():
             for y in self._segmentations[x].keys():
                 length = self._segmentations[x][y].length
                 if length == 0 or self._segmentations[x][y].data.shape[1] == 0:
                     continue  # it would be better to store zero segmentations in order to compare
                 dct = {
-                    'bgn': self._segmentations[x][y].data[:, 0],
-                    'end': self._segmentations[x][y].data[:, 1],
+                    'bgn': self._segmentations[x][y].data[:, 0]*resolution,
+                    'end': self._segmentations[x][y].data[:, 1]*resolution,
+                    'length': (self._segmentations[x][y].data[:, 1]-self._segmentations[x][y].data[:, 0])*resolution,
                     'label': [x for i in range(length)],
                     'caller': [self._metadata['caller'] for i in range(length)]
                 }
@@ -321,6 +329,7 @@ class BaseCaller(object):
                 self._df = pd.concat([self._df, df]).copy()
         self._df.bgn = pd.to_numeric(self._df.bgn)
         self._df.end = pd.to_numeric(self._df.end)
+        self._df.length = pd.to_numeric(self._df.length)
         return self._df
 
 
@@ -328,9 +337,9 @@ class LavaburstCaller(BaseCaller):
 
     # Example run:
     # from CallerClasses import *
-    # lc = LavaburstCaller(['S2'], ['../data/S2.20000.cool'], 'cool', assembly='dm3', resolution=20000, balance=True, chr='chr2L')
-    # lc.call(0.9)
-    # lc.call(1.9)
+    # lc = LavaburstCaller(['S2'], ['../data/S2.20000.cool'], 'cool',
+    # assembly='dm3', resolution=20000, balance=True, chr='chr2L')
+    # lc.call({'gamma':[0.1,0.9]})
     # df = lc.segmentation2df()
     #
 
@@ -338,7 +347,6 @@ class LavaburstCaller(BaseCaller):
         super(LavaburstCaller, self).__init__(datasets_labels, datasets_files, data_format, **kwargs)
         self._metadata['params'] = ['gamma', 'method']
         self._metadata['caller'] = 'Lavaburst'
-
 
     def call(self, params_dict={}, tune=True, **kwargs):
         """
@@ -349,7 +357,9 @@ class LavaburstCaller(BaseCaller):
         :return:
         """
 
-        params_dict['gamma'] = params_dict.get('gamma', np.arange(0,10,1))
+        logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
+
+        params_dict['gamma'] = params_dict.get('gamma', np.arange(0, 10, 1))
         params_dict['method'] = params_dict.get('method', ['armatus'])
 
         if 'files_cool' not in self._metadata.keys():
@@ -369,8 +379,6 @@ class LavaburstCaller(BaseCaller):
                     segmentation = self._call_single(mtx, gamma, method=method, **kwargs)
                     output_dct = {label: deepcopy(segmentation)}
                     self._load_segmentations(output_dct, (gamma, method))
-
-        #eturn self._segmentations
 
     def _call_single(self, mtx, gamma, good_bins='default',
                      method='armatus', max_intertad_size=3, max_tad_size=10000, **kwargs):
@@ -427,7 +435,9 @@ class ArmatusCaller(BaseCaller):
 
     def call(self, params_dict={}, tune=True, **kwargs):
 
-        params_dict['gamma'] = params_dict.get('gamma', np.arange(0,10,1))
+        logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
+
+        params_dict['gamma'] = params_dict.get('gamma', np.arange(0, 10, 1))
 
         if 'files_txt.gz' not in self._metadata.keys():
             self.convert_files('txt.gz', tune=tune)
@@ -438,8 +448,6 @@ class ArmatusCaller(BaseCaller):
                 segmentation = self._call_single(f, gamma, **kwargs)
                 output_dct[label] = deepcopy(segmentation)
             self._load_segmentations(output_dct, (gamma))
-
-        #return self._segmentations
 
     def _call_single(self, mtx_name, gamma, good_bins='default',
                      max_intertad_size=3, max_tad_size=10000, caller_path='armatus', **kwargs):
@@ -465,6 +473,8 @@ class InsulationCaller(BaseCaller):
 
     def call(self, params_dict={}, tune=True, **kwargs):
 
+        logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
+
         params_dict['window'] = params_dict.get('window', [1])
         params_dict['cutoff'] = params_dict.get('cutoff', [0])
 
@@ -473,7 +483,8 @@ class InsulationCaller(BaseCaller):
 
         for label, f in zip(self._metadata['labels'], self._metadata['files_cool']):
             c = cooler.Cooler(f)
-            mtx = c.matrix(balance=self._metadata['balance'], as_pixels=False).fetch(self._metadata['chr'], self._metadata['chr'])
+            mtx = c.matrix(balance=self._metadata['balance'], as_pixels=False)\
+                .fetch(self._metadata['chr'], self._metadata['chr'])
 
             if tune:
                 mtx = self.tune_matrix(mtx)
@@ -484,8 +495,6 @@ class InsulationCaller(BaseCaller):
                     output_dct = {label: deepcopy(segmentation)}
 
                     self._load_segmentations(output_dct, (window, cutoff))
-
-        #return self._segmentations
 
     def _call_single(self, mtx, window, cutoff, max_intertad_size=3, max_tad_size=10000, **kwargs):
         """
@@ -508,7 +517,7 @@ class InsulationCaller(BaseCaller):
 
         if np.diagonal(mtx).sum() > 0:
             logger.warning(
-                "Note that diagonal is not removed. you might want to delete it to avoid noisy and not stable results. ")
+                "Note that diagonal is not removed. You might want to delete it to avoid noisy and not stable results.")
 
         regions = [tadtool.tad.GenomicRegion(chromosome='', start=i, end=i) for i in range(mtx.shape[0])]
 
@@ -533,6 +542,8 @@ class DirectionalityCaller(BaseCaller):
 
     def call(self, params_dict={}, tune=True, **kwargs):
 
+        logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
+
         params_dict['window'] = params_dict.get('window', [1])
         params_dict['cutoff'] = params_dict.get('cutoff', [0])
 
@@ -541,7 +552,8 @@ class DirectionalityCaller(BaseCaller):
 
         for label, f in zip(self._metadata['labels'], self._metadata['files_cool']):
             c = cooler.Cooler(f)
-            mtx = c.matrix(balance=self._metadata['balance'], as_pixels=False).fetch(self._metadata['chr'], self._metadata['chr'])
+            mtx = c.matrix(balance=self._metadata['balance'], as_pixels=False)\
+                .fetch(self._metadata['chr'], self._metadata['chr'])
 
             if tune:
                 mtx = self.tune_matrix(mtx)
@@ -553,8 +565,6 @@ class DirectionalityCaller(BaseCaller):
 
                     self._load_segmentations(output_dct, (window, cutoff))
 
-        #return self._segmentations
-
     def _call_single(self, mtx, window, cutoff, max_intertad_size=3, max_tad_size=10000, **kwargs):
 
         if np.any(np.isnan(mtx)):
@@ -562,7 +572,7 @@ class DirectionalityCaller(BaseCaller):
 
         if np.diagonal(mtx).sum() > 0:
             logger.warning(
-                "Note that diagonal is not removed. you might want to delete it to avoid noisy and not stable results. ")
+                "Note that diagonal is not removed. You might want to delete it to avoid noisy and not stable results.")
 
         regions = [tadtool.tad.GenomicRegion(chromosome='', start=i, end=i) for i in range(mtx.shape[0])]
 
@@ -586,6 +596,8 @@ class HiCsegCaller(BaseCaller):
 
     def call(self, params_dict={}, tune=True, **kwargs):
 
+        logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
+
         params_dict['distr_model'] = params_dict.get('distr_model', ["P"])
 
         if 'files_txt' not in self._metadata.keys():
@@ -597,8 +609,6 @@ class HiCsegCaller(BaseCaller):
                 output_dct = {label: deepcopy(segmentation)}
 
                 self._load_segmentations(output_dct, (distr_model))
-
-        #return self._segmentations
 
     def _call_single(self, mtx_name, distr_model,
                      max_intertad_size=3, max_tad_size=10000, binary_path='Rscript'):
@@ -622,6 +632,8 @@ class MrTADFinderCaller(BaseCaller):
 
     def call(self, tune=False, **kwargs):
 
+        logger.debug("Calling %s" % (self.__class__.__name__))
+
         caller_path = kwargs.get('caller_path', '../MrTADFinder/run_MrTADFinder.jl')
         output_dct = {}
 
@@ -632,9 +644,7 @@ class MrTADFinderCaller(BaseCaller):
             segmentation = self._call_single(f, caller_path=caller_path)
             output_dct[label] = deepcopy(segmentation)
 
-        self._load_segmentations(output_dct, (gamma))
-
-        #return self._segmentations
+        self._load_segmentations(output_dct, gamma) # TODO: fix, no gamma defined for MrTADFinder
 
     def _call_single(self, mtx_name, max_intertad_size=3, max_tad_size=10000,
                      binary_path='julia', **kwargs):
@@ -656,6 +666,7 @@ class MrTADFinderCaller(BaseCaller):
 
         return GenomicRanges(np.array(segments, dtype=int), data_type='segmentation')
 
+
 class HiCExplorerCaller(BaseCaller):
 
     def call(self, params_dict={}, **kwargs):
@@ -665,10 +676,10 @@ class HiCExplorerCaller(BaseCaller):
 
         params_dict['minDepth'] = params_dict.get('minDepth', [5])
         params_dict['maxDepth'] = params_dict.get('minDepth', [10])
-        params_dict['step']     = params_dict.get('step', [1500])
+        params_dict['step'] = params_dict.get('step', [1500])
         params_dict['thresholdComparisons'] = params_dict.get('thresholdComparisons', [0.05])
-        params_dict['delta']    = params_dict.get('delta', [0.01])
-        params_dict['correction']    = params_dict.get('correction', ['fdr'])
+        params_dict['delta'] = params_dict.get('delta', [0.01])
+        params_dict['correction'] = params_dict.get('correction', ['fdr'])
 
         for minDepth in params_dict['minDepth']:
             for maxDepth in params_dict['maxDepth']:
@@ -679,15 +690,29 @@ class HiCExplorerCaller(BaseCaller):
                                 output_dct = {}
                                 for label, f in zip(self._metadata['labels'], self._metadata['files_h5']):
                                     outmask = "tmp/{}.tmp".format(label)
-                                    segmentation = self._call_single(f, outmask, minDepth, maxDepth, step, thresholdComparisons, delta, correction, **kwargs)
+                                    segmentation = self._call_single(f,
+                                                                     outmask,
+                                                                     minDepth,
+                                                                     maxDepth,
+                                                                     step,
+                                                                     thresholdComparisons,
+                                                                     delta,
+                                                                     correction,
+                                                                     **kwargs)
                                     output_dct[label] = deepcopy(segmentation)
-                                self._load_segmentations(output_dct, (minDepth, maxDepth, step, thresholdComparisons, delta, correction))
+                                self._load_segmentations(output_dct,
+                                                         (minDepth, maxDepth, step,
+                                                          thresholdComparisons, delta, correction))
 
         return self._segmentations
 
-    def _call_single(self, infile, outmask, minDepth, maxDepth,
-                     step, thresholdComparisons=0.05, delta=0.01,
-                     correction="fdr", nthreads=1, caller_path='hicFindTADs', **kwargs):
+    def _call_single(self, infile, outmask, minDepth, maxDepth, step,
+                     thresholdComparisons=0.05,
+                     delta=0.01,
+                     correction="fdr",
+                     nthreads=1,
+                     caller_path='hicFindTADs',
+                     **kwargs):
 
         command = """{} -m {} \
                 --outPrefix {} \
@@ -701,6 +726,5 @@ class HiCExplorerCaller(BaseCaller):
                                 step, thresholdComparisons, delta, correction, nthreads)
 
         run_command(command)
-
 
         #return GenomicRanges(np.array(segments, dtype=int), data_type='segmentation')
