@@ -3,6 +3,7 @@ Classes for data handling like TAD segmentation
 or genomic tracks.
 """
 
+from os import stat as file_stat
 from .utils import *
 from .logger import logger
 import numpy as np
@@ -33,7 +34,7 @@ class GenomicRanges(object):
         elif buff.shape[1] == 3:
             self.data = buff[:, 0:1]
             self.coverage = buff[:, 2]
-        elif buff.shape[1] == 0: # No segments in a segmentation, TODO: @dmyl check
+        elif not buff: # No segments in a segmentation, TODO: @dmyl check
             self.data = np.empty((0,0))
             self.coverage = np.empty(0)
         else:
@@ -283,9 +284,12 @@ def load_BED(filename):
     3- and 6-column BED files.
     """
     buff = np.loadtxt(filename, dtype=object, ndmin=2)
-    if buff.shape[1] not in (2, 3, 6):
+    if not buff:
+        print(buff)
+        return {"chr1": GenomicRanges(buff)}
+    elif buff.shape[1] not in (2, 3, 6):
         raise Exception("Given file is not BED-like.")
-    elif buff.shape[1] == 2:
+    elif buff.shape[1] in (0, 2):
         return {"chr1": GenomicRanges(buff)}
     else:
         chrms = np.unique(buff[:, 0])
