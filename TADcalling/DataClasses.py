@@ -35,7 +35,7 @@ class GenomicRanges(object):
             self.data = buff[:, 0:1]
             self.coverage = buff[:, 2]
         elif not buff: # No segments in a segmentation, TODO: @dmyl check
-            self.data = np.empty((0,0))
+            self.data = np.empty((0, 0))
             self.coverage = np.empty(0)
         else:
             raise Exception("Inappropriate shape of arr_object: {}.".format(buff.shape))
@@ -60,15 +60,19 @@ class GenomicRanges(object):
         """
         Returns TADs as as objects from their coordinates.
         """
-        _vector_str = np.vectorize(str)
-        return npchar.add(_vector_str(arr[:, 0]), npchar.add(",", _vector_str(arr[:, 1])))
+        if arr.shape[0]:
+            _vector_str = np.vectorize(str)
+            return npchar.add(_vector_str(arr[:, 0]), npchar.add(",", _vector_str(arr[:, 1])))
+        return arr
 
     @staticmethod
     def TAD_boundaries(arr):
         """
         Returns TAD unique boundaries.
         """
-        return np.unique(np.append(arr[:, 0], arr[:, 1]))
+        if arr.shape[0]:
+            return np.unique(np.append(arr[:, 0], arr[:, 1]))
+        return arr
 
     @staticmethod
     def jaccard_index(arr1, arr2):
@@ -76,8 +80,10 @@ class GenomicRanges(object):
         Calculate Jaccard index between two 1-dimensional
         arrays containing genomic ranges.
         """
-        intersection = np.isin(arr1, arr2)
-        return sum(intersection) / (arr1.shape[0] + arr2.shape[0] - sum(intersection))
+        if arr1.shape[0] * arr2.shape[0]:
+            intersection = np.isin(arr1, arr2)
+            return sum(intersection) / (arr1.shape[0] + arr2.shape[0] - sum(intersection))
+        return 0
 
     @staticmethod
     def overlap_coef(arr1, arr2):
@@ -85,27 +91,33 @@ class GenomicRanges(object):
         Calculate Overlap coefficient between two 1-dimensional
         arrays containing genomic ranges.
         """
-        intersection = np.isin(arr1, arr2)
-        return sum(intersection) / min(arr1.shape[0], arr2.shape[0])
+        if arr1.shape[0] * arr2.shape[0]:
+            intersection = np.isin(arr1, arr2)
+            return sum(intersection) / min(arr1.shape[0], arr2.shape[0])
+        return 0
 
     @staticmethod
     def TPR(arr1, arr2):
         """
         Calculate TPR of arr2 in arr1.
         """
-        return sum(np.isin(arr1, arr2)) / arr2.shape[0]
+        if arr1.shape[0] * arr2.shape[0]:
+            return sum(np.isin(arr1, arr2)) / arr2.shape[0]
+        return 0
 
     @staticmethod
     def FDR(arr1, arr2):
         """
         Calculate FDR in arr1 regarding arr2.
         """
-        return sum(~np.isin(arr1, arr2)) / arr1.shape[0]
+        if arr1.shape[0] * arr2.shape[0]:
+            return sum(~np.isin(arr1, arr2)) / arr1.shape[0]
+        return 0
 
     @staticmethod
     def find_intersect(arr1, arr2, ident=1):
         """
-        Return logical indexes of intersecting ranges in two
+        Return intersecting ranges in two
         2d arrays with given identity regarding the first array.
         Asymmetrical!
         """
@@ -113,16 +125,22 @@ class GenomicRanges(object):
         i, k = 0, 0
         while i < arr1.shape[0] and k < arr2.shape[0]:
             if arr1[i, 0] >= arr2[k, 1]:
+                print(1)
                 k += 1
             elif arr1[i, 1] <= arr2[k, 0]:
+                print(2)
                 i += 1
             else:
+                print(3)
                 intersection = min(arr1[i, 1], arr2[k, 1]) - max(arr1[i, 0], arr2[k, 0]) + 1
                 if (intersection / (arr1[i, 1] - arr1[i, 0] + 1)) >= ident:
+                    print(4)
                     list_intersecting.append([arr1[i, :], arr2[k, :]])
                 if arr1[i, 1] < arr2[k, 1]:
+                    print(5)
                     i += 1
                 else:
+                    print(6)
                     k += 1
         return np.array(list_intersecting)
 
@@ -133,6 +151,9 @@ class GenomicRanges(object):
         borders on value not greater then offset.
         Returns fitted arr1 and original arr2.
         """
+        if not arr1.shape[0] * arr2.shape[0]:
+            return arr1, arr2
+
         v1 = arr1.copy()
         v2 = arr2.copy()
 
@@ -203,12 +224,13 @@ class GenomicRanges(object):
         Return share of shared TADs regarding the first range with given identity.
         Asymmetrical!
         """
+        if not self.data.shape[0] * other.data.shape[0]:
+            return 0
         intersected = GenomicRanges.find_intersect(self.data, other.data, ident=ident)
         amount_shared = intersected.shape[0]
         shared_1 = np.unique(GenomicRanges.TAD_bins(intersected[:, 0, :])).shape[0]
         # TODO: consider the formula.
         return amount_shared / (self.length + other.length - shared_1)
-
     # TODO: tests
     def find_closest(self, other, mode='boundariwise'):
         """
@@ -219,6 +241,8 @@ class GenomicRanges(object):
         boundaries in other.
         Return arrays of indexes.
         """
+        if not self.data.shape[0] * other.data.shape[0]:
+            return None
         v1 = np.copy(self.data)
         v2 = np.copy(other.data)
         if mode == 'boundariwise':
@@ -260,6 +284,8 @@ class GenomicRanges(object):
         feature in self.
         """
         indexes = self.find_closest(other, mode=mode)
+        if not indexes:
+            return None
         if mode == 'boundariwise':
             ind_start, ind_end = indexes
             dist_start = np.array([other.data[i[0], i[1]] for i in ind_start]) - self.data[:, 0]
@@ -269,8 +295,8 @@ class GenomicRanges(object):
             indexes = self.find_closest(other, mode=mode)
             distances = np.zeros(indexes.shape[0], dtype=int)
             mask_zeros = indexes[:, 1] < 2
-            closest = np.array([v2[i[0], i[1]] for i in indexes[mask_zeros]], dtype=int)
-            boundaries = np.array([v1[i, 0] if indexes[i, 1] == 1 else v1[i, 1] for i in range(v1.shape[0])], dtype=int)
+            closest = np.array([other.data[i[0], i[1]] for i in indexes[mask_zeros]], dtype=int)
+            boundaries = np.array([self.data[i, 0] if indexes[i, 1] == 1 else self.data[i, 1] for i in range(self.data.shape[0])], dtype=int)
             distances[mask_zeros] = boundaries[mask_zeros] - closest
             return distances
         else:
