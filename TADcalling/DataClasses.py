@@ -125,22 +125,16 @@ class GenomicRanges(object):
         i, k = 0, 0
         while i < arr1.shape[0] and k < arr2.shape[0]:
             if arr1[i, 0] >= arr2[k, 1]:
-                print(1)
                 k += 1
             elif arr1[i, 1] <= arr2[k, 0]:
-                print(2)
                 i += 1
             else:
-                print(3)
                 intersection = min(arr1[i, 1], arr2[k, 1]) - max(arr1[i, 0], arr2[k, 0]) + 1
                 if (intersection / (arr1[i, 1] - arr1[i, 0] + 1)) >= ident:
-                    print(4)
                     list_intersecting.append([arr1[i, :], arr2[k, :]])
                 if arr1[i, 1] < arr2[k, 1]:
-                    print(5)
                     i += 1
                 else:
-                    print(6)
                     k += 1
         return np.array(list_intersecting)
 
