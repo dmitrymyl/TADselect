@@ -8,37 +8,41 @@ import time
 
 from .logger import logger
 
-######## Basic utils to run linux commands #########
+
+# Basic utils to run linux commands ###
+
 
 def call_and_check_errors(command):
-
     proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             shell=True, executable='/bin/bash')
     (stdout, stderr) = proc.communicate()
     logger.info("Check stdout: {}".format(stdout))
     if stderr:
-        logger.info("Stderr is not empty. Might be an error in call_and_check_errors for the command: {}".format(command))
-        logger.info("Check stderr: {}".format(stderr))
-        return stderr   # Error, very bad!
+        logger.info("Stderr is not empty. Might be an error in call_and_check_errors for the command: %s" % command)
+        logger.info("Check stderr: %s" % stderr)
+        return stderr
     else:
-        return 0        # No error, great!
+        return 0
+
 
 def run_command(command, force=False):
-
     logger.info(command)
 
     possible_outfile = command.split('>')
 
-    if len(possible_outfile)>1:
+    if len(possible_outfile) > 1:
         possible_outfile = possible_outfile[-1]
         if os.path.isfile(possible_outfile):
             if force:
-                logger.info("Outfile {} exists. It will be overwritten!".format(possible_outfile))
+                logger.info("Outfile %s exists. It will be overwritten!" % possible_outfile)
             else:
-                raise Exception("Outfile {} exists. Please, delete it, or use force=True to overwrite it.".format(possible_outfile))
+                logger.error("Outfile %s exists. Please, delete it, or use force=True to overwrite it."
+                             % possible_outfile)
 
     cmd_bgn_time = time.time()
     is_err = call_and_check_errors(command)
     cmd_end_time = time.time()
+
+    logger.info("Command completed: %f" % (cmd_end_time - cmd_bgn_time))
 
     return is_err
