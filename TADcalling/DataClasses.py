@@ -226,6 +226,7 @@ class GenomicRanges(object):
         # TODO: consider the formula.
         return amount_shared / (self.length + other.length - shared_1)
     # TODO: tests
+    # TODO: bin-boundariwise mode
     def find_closest(self, other, mode='boundariwise'):
         """
         Find closest feature in other for each feature
@@ -278,7 +279,7 @@ class GenomicRanges(object):
         feature in self.
         """
         indexes = self.find_closest(other, mode=mode)
-        if not indexes:
+        if indexes is None:
             return None
         if mode == 'boundariwise':
             ind_start, ind_end = indexes
