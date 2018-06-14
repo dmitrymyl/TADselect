@@ -315,6 +315,6 @@ def load_BED(filename):
         chrms = np.unique(buff[:, 0])
         indices = [np.searchsorted(buff[:, 0], chrm) for chrm in chrms]
         if buff.shape[1] == 3:
-            return {chrm: GenomicRanges(arr) for chrm, arr in zip(chrms, np.vsplit(buff[:, 1:], indices))}
+            return {chrm: GenomicRanges(arr) for chrm, arr in zip(chrms, np.vsplit(buff[:, 1:], indices[1:]))}
         if buff.shape[1] == 6:
-            return {chrm: GenomicRanges(arr) for chrm, arr in zip(chrms, np.vsplit(buff[:, [1, 2, 4]], indices))}
+            return {chrm: GenomicRanges(arr) for chrm, arr in zip(chrms, np.vsplit(buff[:, [1, 2, 4]], indices[1:]))}
