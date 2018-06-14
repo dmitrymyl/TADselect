@@ -7,6 +7,7 @@ from .utils import *
 from .logger import logger
 from .DataClasses import GenomicRanges, load_BED
 from copy import deepcopy
+from functools import partial
 import numpy as np
 import pandas as pd
 import cooler
@@ -347,6 +348,7 @@ class LavaburstCaller(BaseCaller):
         super(LavaburstCaller, self).__init__(datasets_labels, datasets_files, data_format, **kwargs)
         self._metadata['params'] = ['gamma', 'method']
         self._metadata['caller'] = 'Lavaburst'
+        self._metadata['method'] = kwargs.get('method', 'armatus')
 
     def call(self, params_dict={}, tune=True, **kwargs):
         """
@@ -360,7 +362,7 @@ class LavaburstCaller(BaseCaller):
         logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
 
         params_dict['gamma'] = params_dict.get('gamma', np.arange(0, 10, 1))
-        params_dict['method'] = params_dict.get('method', ['armatus'])
+        params_dict['method'] = params_dict.get('method', [self._metadata['method']])
 
         if 'files_cool' not in self._metadata.keys():
             raise BasicCallerException("No cool file present for caller. Please, perform valid conversion!")
@@ -378,7 +380,10 @@ class LavaburstCaller(BaseCaller):
                 for method in params_dict['method']:
                     segmentation = self._call_single(mtx, gamma, method=method, **kwargs)
                     output_dct = {label: deepcopy(segmentation)}
-                    self._load_segmentations(output_dct, (gamma, method))
+                    if len(params_dict['method']) > 1:
+                        self._load_segmentations(output_dct, (gamma, method))
+                    else:
+                        self._load_segmentations(output_dct, (gamma))
 
     def _call_single(self, mtx, gamma, good_bins='default',
                      method='armatus', max_intertad_size=3, max_tad_size=10000, **kwargs):
@@ -424,6 +429,12 @@ class LavaburstCaller(BaseCaller):
         segments = segments[mask]
 
         return GenomicRanges(np.array(segments, dtype=int), data_type='segmentation')
+
+
+LavaArmatusCaller = partial(LavaburstCaller, method='armatus')
+LavaModularityCaller = partial(LavaburstCaller, method='modularity')
+LavaVarianceCaller = partial(LavaburstCaller, method='variance')
+LavaCornerCaller = partial(LavaburstCaller, method='corner')
 
 
 class ArmatusCaller(BaseCaller):
