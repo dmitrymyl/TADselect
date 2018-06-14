@@ -34,7 +34,7 @@ class GenomicRanges(object):
         elif buff.shape[1] == 3:
             self.data = buff[:, 0:1]
             self.coverage = buff[:, 2]
-        elif not buff:  # No segments in a segmentation, TODO: @dmyl check
+        elif buff is None:  # No segments in a segmentation, TODO: @dmyl check
             self.data = np.empty((0, 0))
             self.coverage = np.empty(0)
         else:
@@ -305,8 +305,7 @@ def load_BED(filename):
     3- and 6-column BED files.
     """
     buff = np.loadtxt(filename, dtype=object, ndmin=2)
-    if not buff:
-        print(buff)
+    if buff is None:
         return {"chr1": GenomicRanges(buff)}
     elif buff.shape[1] not in (2, 3, 6):
         raise Exception("Given file is not BED-like.")
