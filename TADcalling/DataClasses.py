@@ -141,7 +141,7 @@ class GenomicRanges(object):
     @staticmethod
     def make_offset(arr1, arr2, offset=1):
         """
-        Tries to fit arr1 to arr2 by shifting
+        Tries to fit 2-dim arr1 to arr2 by shifting
         borders on value not greater then offset.
         Returns fitted arr1 and original arr2.
         """
@@ -158,7 +158,7 @@ class GenomicRanges(object):
 
         # First, find identical end borders and try to fit starts.
         mask_ends_1 = np.isin(v1[:, 1], v2[:, 1])
-        mask_ends_2 = sum(v2[:, 1] == end for end in v1[:, 1][mask_ends_1]).astype(dtype=bool)
+        mask_ends_2 = np.array(sum(v2[:, 1] == end for end in v1[:, 1][mask_ends_1])).astype(dtype=bool)
         dists1 = v2[mask_ends_2] - v1[mask_ends_1]
         v1[mask_ends_1] += cutzerosvec(dists1, offset)
 
