@@ -278,16 +278,18 @@ class BaseCaller(object):
         self._metadata['files_{}'.format(data_format)] = resulting_files
         self._metadata['data_formats'].append(data_format)
 
-    def _load_segmentations(self, input, params):
+    def _load_segmentations(self, input, params, label=None):
         """
         Basic function of BaseCaller to load the segmentation (from file or from variable)
         :param input dict (ordered by metadata['labels']) with segmentations (2d np.ndarray) or names of files
         :param params: set of parameters
         :return:
         """
-
-        for x in self._metadata['labels']:
-            self._segmentations[x][params] = input[x]
+        if label:
+            self._segmentations[label][params] = input[label]
+        else:
+            for x in self._metadata['labels']:
+                self._segmentations[x][params] = input[x]
 
     def call(self, params):
         """
@@ -350,7 +352,7 @@ class LavaburstCaller(BaseCaller):
         self._metadata['caller'] = 'Lavaburst'
         self._metadata['method'] = kwargs.get('method', 'armatus')
 
-    def call(self, params_dict={}, tune=True, **kwargs):
+    def call(self, params_data={}, tune=True, **kwargs):
         """
         Lavaburst segmentation calling for a set of parameters.
         :param params_dict: dictionary of parameters, containing gammas and methods
@@ -359,10 +361,11 @@ class LavaburstCaller(BaseCaller):
         :return:
         """
 
-        logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
+        logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_data)))
 
-        params_dict['gamma'] = params_dict.get('gamma', np.arange(0, 10, 1))
-        params_dict['method'] = params_dict.get('method', [self._metadata['method']])
+        params_dict = dict()
+        params_dict['gamma'] = params_data.get('gamma', np.arange(0, 10, 1))
+        params_dict['method'] = params_data.get('method', [self._metadata['method']])
 
         if 'files_cool' not in self._metadata.keys():
             raise BasicCallerException("No cool file present for caller. Please, perform valid conversion!")
@@ -381,9 +384,9 @@ class LavaburstCaller(BaseCaller):
                     segmentation = self._call_single(mtx, gamma, method=method, **kwargs)
                     output_dct = {label: deepcopy(segmentation)}
                     if len(params_dict['method']) > 1:
-                        self._load_segmentations(output_dct, (gamma, method))
+                        self._load_segmentations(output_dct, (gamma, method), label=label)
                     else:
-                        self._load_segmentations(output_dct, (gamma))
+                        self._load_segmentations(output_dct, (gamma), label=label)
 
     def _call_single(self, mtx, gamma, good_bins='default',
                      method='armatus', max_intertad_size=3, max_tad_size=10000, **kwargs):
@@ -505,7 +508,7 @@ class InsulationCaller(BaseCaller):
                     segmentation = self._call_single(mtx, window, cutoff, **kwargs)
                     output_dct = {label: deepcopy(segmentation)}
 
-                    self._load_segmentations(output_dct, (window, cutoff))
+                    self._load_segmentations(output_dct, (window, cutoff), label=label)
 
     def _call_single(self, mtx, window, cutoff, max_intertad_size=3, max_tad_size=10000, **kwargs):
         """
@@ -574,7 +577,7 @@ class DirectionalityCaller(BaseCaller):
                     segmentation = self._call_single(mtx, window, cutoff, **kwargs)
                     output_dct = {label: deepcopy(segmentation)}
 
-                    self._load_segmentations(output_dct, (window, cutoff))
+                    self._load_segmentations(output_dct, (window, cutoff), label=label)
 
     def _call_single(self, mtx, window, cutoff, max_intertad_size=3, max_tad_size=10000, **kwargs):
 
@@ -619,7 +622,7 @@ class HiCsegCaller(BaseCaller):
                 segmentation = self._call_single(f, distr_model, **kwargs)
                 output_dct = {label: deepcopy(segmentation)}
 
-                self._load_segmentations(output_dct, (distr_model))
+                self._load_segmentations(output_dct, (distr_model), label=label)
 
     def _call_single(self, mtx_name, distr_model,
                      max_intertad_size=3, max_tad_size=10000, binary_path='Rscript'):

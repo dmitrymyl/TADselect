@@ -34,9 +34,9 @@ class GenomicRanges(object):
         elif buff.shape[1] == 3:
             self.data = buff[:, 0:1]
             self.coverage = buff[:, 2]
-        elif buff is None:  # No segments in a segmentation, TODO: @dmyl check
-            self.data = np.empty((0, 0))
-            self.coverage = np.empty(0)
+        elif buff is None or buff.shape[1] == 0:  # No segments in a segmentation, TODO: @dmyl check
+            self.data = np.zeros((1, 2))
+            self.coverage = np.zeros(1)
         else:
             raise Exception("Inappropriate shape of arr_object: {}.".format(buff.shape))
 
