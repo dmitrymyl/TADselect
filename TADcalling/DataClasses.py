@@ -159,22 +159,26 @@ class GenomicRanges(object):
         # First, find identical end borders and try to fit starts.
         mask_ends_1 = np.isin(v1[:, 1], v2[:, 1])
         mask_ends_2 = np.array(sum(v2[:, 1] == end for end in v1[:, 1][mask_ends_1])).astype(dtype=bool)
-        dists1 = v2[mask_ends_2] - v1[mask_ends_1]
-        v1[mask_ends_1] += cutzerosvec(dists1, offset)
+        if mask_ends_2.any():
+            dists1 = v2[mask_ends_2] - v1[mask_ends_1]
+            v1[mask_ends_1] += cutzerosvec(dists1, offset)
 
         # Second, find identical start borders and try to fit ends.
         mask_starts_1 = np.isin(v1[:, 0], v2[:, 0])
-        mask_starts_2 = sum(v2[:, 0] == end for end in v1[:, 0][mask_starts_1]).astype(dtype=bool)
-        dists2 = v2[mask_starts_2] - v1[mask_starts_1]
-        v1[mask_starts_1] += cutzerosvec(dists2, offset)
+        mask_starts_2 = np.array(sum(v2[:, 0] == end for end in v1[:, 0][mask_starts_1])).astype(dtype=bool)
+        if mask_starts_2.any():
+            dists2 = v2[mask_starts_2] - v1[mask_starts_1]
+            v1[mask_starts_1] += cutzerosvec(dists2, offset)
 
         # Finally, try to fit both starts and ends.
         start_dist = np.array([min(v2[:, 0] - i, key=abs) for i in v1[:, 0]], dtype=int)
         end_dist = np.array([min(v2[:, 1] - i, key=abs) for i in v1[:, 1]], dtype=int)
         mask_start = abs(start_dist) <= offset
         mask_end = abs(end_dist) <= offset
-        v1[:, 0][mask_start] += start_dist[mask_start]
-        v1[:, 1][mask_end] += end_dist[mask_end]
+        if mask_start.any():
+            v1[:, 0][mask_start] += start_dist[mask_start]
+        if mask_end.any():
+            v1[:, 1][mask_end] += end_dist[mask_end]
         return v1, v2
 
     # Redefine with two dictionaries of methods? Where to place dictionaries?
