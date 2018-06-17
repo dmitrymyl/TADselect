@@ -4,8 +4,9 @@ Classes for TAD calling for various tools
 
 # Universal imports
 from .utils import *
-from .logger import logger
+from .logger import TADcalling_logger # as logger
 from .DataClasses import GenomicRanges, load_BED
+from .InteractionMatrix import InteractionMatrix
 from copy import deepcopy
 from functools import partial
 import numpy as np
@@ -46,7 +47,7 @@ class BaseCaller(object):
             self._segmentations -- dictionary with segmentations for all the files
         """
 
-        logger.debug("Initializing from files: %s", str(datasets_files))
+        TADcalling_logger.debug("Initializing from files: %s", str(datasets_files))
 
         assert len(datasets_labels) == len(datasets_files)
 
@@ -101,151 +102,11 @@ class BaseCaller(object):
 
         return mtx
 
-    def convert_file(self, input_filename=None, input_format=None,
-                     mtx=None, output_format='txt', **kwargs):
-        """
-        Convert one file or matrix into required format.
-        """
-
-        logger.info("Converting file: {} from {} to {}".format(input_filename, input_format, output_format))
-
-        tune = kwargs.get('tune', False)
-        balance = kwargs.get('balance', True)
-        chromosome = kwargs.get('chr', self._metadata['chr'])
-        resolution = kwargs.get('res', 20000)
-        remove_intermediary_files = kwargs.get('remove_intermediary_files', True)
-        output_filename = kwargs.get('output_filename', 'tmp.txt')
-
-        if input_filename and input_format:
-            if input_format == 'cool' and 'txt' in output_format:
-                output_prefix = '.'.join(input_filename.split('.')[:-1])
-                output_filename = output_prefix + '.{}.txt'.format(chromosome)
-
-                c = cooler.Cooler(input_filename)
-                mtx = c.matrix(balance=balance, as_pixels=False).fetch(chromosome, chromosome)
-
-                if tune:
-                    mtx = self.tune_matrix(mtx)
-
-                np.savetxt(output_filename, mtx, delimiter='\t')
-
-                if 'gz' in output_format:
-                    command = 'gzip {}'.format(output_filename)
-                    run_command(command)
-                    output_filename += '.gz'
-
-                return output_filename
-
-            elif input_format == 'cool' and output_format == 'sparse':
-
-                # Very bad section, needs to be fixed!
-
-                output_prefix = '.'.join(input_filename.split('.')[:-1])
-                output_filename = output_prefix + '.{}.sparse.txt'.format(chromosome)
-
-                c = cooler.Cooler(input_filename)
-                mtx_df = c.matrix(balance=self._metadata['balance'], as_pixels=True, join=True,
-                                  ignore_index=False).fetch(chromosome, chromosome)
-                if self._metadata['balance']:
-                    mtx_df.loc[:, 'count'] = mtx_df.loc[:, 'balanced']
-                    mtx_df = mtx_df.drop('balanced', axis=1)
-                    mtx_df = mtx_df.dropna()
-                mtx_df.to_csv(output_filename, index=False, sep='\t', header=False)
-
-                return output_filename
-
-            elif input_format == 'cool' and 'mr_sparse' in output_format:
-                output_prefix = '.'.join(input_filename.split('.')[:-1])
-                output_filename = output_prefix + '.{}.mr_sparse.txt'.format(chromosome)
-
-                c = cooler.Cooler(input_filename)
-                mtx = c.matrix(balance=True, as_pixels=True).fetch(chromosome, chromosome)
-                mtx.loc[:, "bin1_id":"bin2_id"] += 1
-
-                mtx.loc[:, 'bin1_id':'count'].to_csv(output_filename, header=False, index=False, sep='\t')
-
-                max_bin = mtx.loc[:, 'bin1_id':'bin2_id'].max().max()
-
-                with open(output_prefix + ".{}.genome_bin.txt".format(chromosome), 'w') as outfile:
-                    outfile.write("1\tchr1\t0\t{}".format(max_bin - 1))
-
-                with open(output_prefix + ".{}.all_bins.txt".format(chromosome), 'w') as outfile:
-                    for i in range(max_bin):
-                        outfile.write("0\t{}\t{}\n".format(i * resolution + 1, (i + 1) * resolution))
-
-                return output_filename
-
-            elif 'txt' in input_format and output_format == 'cool':
-                # TODO implement this option
-                # https://github.com/hms-dbmi/higlass/issues/100#issuecomment-302183312
-                logger.error('Option currently not importmented!')
-
-            elif input_format == 'cool' and output_format == 'h5':
-                output_prefix = '.'.join(input_filename.split('.')[:-1])
-                output_filename = output_prefix + '.h5'
-                command = "hicExport --inFile {} --outFileName {} --inputFormat cool --outputFormat h5"\
-                    .format(input_filename, output_filename)
-                run_command(command)
-                return output_filename
-
-            elif input_format == 'cool' and output_format == 'hic':
-
-                binary_path = kwargs.get('binary_path', 'java')
-                juicer_path = kwargs.get('juicer_path', './juicer_tools.1.8.9_jcuda.0.8.jar')
-                genome = kwargs.get('genome', 'dm3')
-
-                output_prefix = '.'.join(input_filename.split('.')[:-1])
-                outfile_hic = "{}.{}.hic".format(output_prefix, chromosome)
-
-                outfile_txt = outfile_hic + '.txt'
-                outfile_tmp = outfile_hic + '.tmp'
-
-                with open(outfile_tmp, 'w'):
-                    pass
-
-                outfile_tmp = self.convert_file(input_filename=input_filename,
-                                                input_format='cool',
-                                                output_format='sparse')
-
-                command1 = "awk '{{print 0, $1, $2, 0, 0, $4, $5, 1, $7}}' {} > {}".format(outfile_tmp, outfile_txt)
-                command2 = "gzip -f {}".format(outfile_txt)
-                command3 = "{} -Xmx2g -jar {} pre -r {} -c {} {}.gz {} {}".format(binary_path,
-                                                                                  juicer_path,
-                                                                                  resolution,
-                                                                                  chromosome,
-                                                                                  outfile_txt,
-                                                                                  outfile_hic,
-                                                                                  genome)
-
-                run_command(command1)
-                run_command(command2)
-                run_command(command3)
-
-                if remove_intermediary_files:
-                    os.remove(outfile_txt + '.gz')
-
-        elif mtx:
-            if tune:
-                mtx = self.tune_matrix(mtx)
-
-                if 'txt' in output_format:
-                    np.savetxt(output_filename, mtx, delimiter='\t')
-
-                    if 'gz' in output_format:
-                        command = 'gzip {}'.format(output_filename)
-                        run_command(command)
-                        output_filename += '.gz'
-
-                elif output_format == 'cool':
-                    logger.error('Option currently not importmented!')
-
-            return output_filename
-
-        else:
-            raise Exception("Neither input filename nor matrix are presented.")
-
     def convert_files(self, data_format, **kwargs):
         """
+        TODO @agal Remove all the levels of data processing to the InteractionMatrix class
+        TODO @agal Remove everything to old "tune" function
+
         Converts input files into required format.
         :param data_format: format of resulting files ('cool', 'txt', 'txt.gz', 'hic', 'h5')
         :param kwargs: Optional parameters for data coversion
@@ -270,9 +131,13 @@ class BaseCaller(object):
                 param_dict[k] = kwargs.get(k)
 
         for f in self._metadata[file_holder]:
-            output_fname = self.convert_file(input_filename=f,
-                                             input_format=original_format,
-                                             output_format=data_format, **param_dict)
+
+            mtxObj = InteractionMatrix(f, original_format, read=False)
+
+            output_fname = mtxObj.convert_without_reading(input_filename=f,
+                                                          output_filename="{}.{}".format(f, data_format),
+                                                          input_format=original_format,
+                                                          output_format=data_format, **param_dict)
             resulting_files.append(output_fname)
 
         self._metadata['files_{}'.format(data_format)] = resulting_files
@@ -297,7 +162,7 @@ class BaseCaller(object):
         :param params: set of calling parameters
         :return: dict (ordered by metadata['labels']) with segmentations (2d np.ndarray) or names of files
         """
-        logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params)))
+        TADcalling_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params)))
         segmentations = {x: GenomicRanges(np.empty([0, 0], dtype=int), data_type="segmentation")
                          for x in self._metadata['labels']}
         self._load_segmentations(segmentations, params)
@@ -307,7 +172,6 @@ class BaseCaller(object):
         Converter of all the segmentations to Pandas dataframe.
         :return:
         """
-        resolution = self._metadata['resolution']
         params_names = self._metadata['params']
         self._df = pd.DataFrame(columns=['bgn', 'end', 'length', 'label', 'caller'] + params_names)
         for x in self._segmentations.keys():
@@ -316,9 +180,9 @@ class BaseCaller(object):
                 if length == 0 or self._segmentations[x][y].data.shape[1] == 0:
                     continue  # it would be better to store zero segmentations in order to compare
                 dct = {
-                    'bgn': self._segmentations[x][y].data[:, 0]*resolution,
-                    'end': self._segmentations[x][y].data[:, 1]*resolution,
-                    'length': (self._segmentations[x][y].data[:, 1]-self._segmentations[x][y].data[:, 0])*resolution,
+                    'bgn': self._segmentations[x][y].data[:, 0],
+                    'end': self._segmentations[x][y].data[:, 1],
+                    'length': (self._segmentations[x][y].data[:, 1]-self._segmentations[x][y].data[:, 0]),
                     'label': [x for i in range(length)],
                     'caller': [self._metadata['caller'] for i in range(length)]
                 }
@@ -330,9 +194,17 @@ class BaseCaller(object):
                 df = pd.DataFrame(dct)
 
                 self._df = pd.concat([self._df, df]).copy()
+
         self._df.bgn = pd.to_numeric(self._df.bgn)
         self._df.end = pd.to_numeric(self._df.end)
         self._df.length = pd.to_numeric(self._df.length)
+
+        for param in params_names:
+            try:
+                self._df[param] = pd.to_numeric(self._df[param])
+            except Exception as e:
+                pass
+
         return self._df
 
 
@@ -361,7 +233,7 @@ class LavaburstCaller(BaseCaller):
         :return:
         """
 
-        logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_data)))
+        TADcalling_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_data)))
 
         params_dict = dict()
         params_dict['gamma'] = params_data.get('gamma', np.arange(0, 10, 1))
@@ -401,10 +273,10 @@ class LavaburstCaller(BaseCaller):
         """
 
         if np.any(np.isnan(mtx)):
-            logger.warning("NaNs in dataset, pease remove them first.")
+            TADcalling_logger.warning("NaNs in dataset, pease remove them first.")
 
         if np.diagonal(mtx).sum() > 0:
-            logger.warning(
+            TADcalling_logger.warning(
                 "Note that diagonal is not removed. you might want to delete it to avoid noisy and not stable results. ")
 
         if method == 'modularity':
@@ -449,7 +321,7 @@ class ArmatusCaller(BaseCaller):
 
     def call(self, params_dict={}, tune=True, **kwargs):
 
-        logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
+        TADcalling_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
 
         params_dict['gamma'] = params_dict.get('gamma', np.arange(0, 10, 1))
 
@@ -487,7 +359,7 @@ class InsulationCaller(BaseCaller):
 
     def call(self, params_dict={}, tune=True, **kwargs):
 
-        logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
+        TADcalling_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
 
         params_dict['window'] = params_dict.get('window', [1])
         params_dict['cutoff'] = params_dict.get('cutoff', [0])
@@ -527,10 +399,10 @@ class InsulationCaller(BaseCaller):
         """
 
         if np.any(np.isnan(mtx)):
-            logger.warning("NaNs in dataset, pease remove them first.")
+            TADcalling_logger.warning("NaNs in dataset, pease remove them first.")
 
         if np.diagonal(mtx).sum() > 0:
-            logger.warning(
+            TADcalling_logger.warning(
                 "Note that diagonal is not removed. You might want to delete it to avoid noisy and not stable results.")
 
         regions = [tadtool.tad.GenomicRegion(chromosome='', start=i, end=i) for i in range(mtx.shape[0])]
@@ -556,7 +428,7 @@ class DirectionalityCaller(BaseCaller):
 
     def call(self, params_dict={}, tune=True, **kwargs):
 
-        logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
+        TADcalling_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
 
         params_dict['window'] = params_dict.get('window', [1])
         params_dict['cutoff'] = params_dict.get('cutoff', [0])
@@ -582,10 +454,10 @@ class DirectionalityCaller(BaseCaller):
     def _call_single(self, mtx, window, cutoff, max_intertad_size=3, max_tad_size=10000, **kwargs):
 
         if np.any(np.isnan(mtx)):
-            logger.warning("NaNs in dataset, pease remove them first.")
+            TADcalling_logger.warning("NaNs in dataset, pease remove them first.")
 
         if np.diagonal(mtx).sum() > 0:
-            logger.warning(
+            TADcalling_logger.warning(
                 "Note that diagonal is not removed. You might want to delete it to avoid noisy and not stable results.")
 
         regions = [tadtool.tad.GenomicRegion(chromosome='', start=i, end=i) for i in range(mtx.shape[0])]
@@ -610,7 +482,7 @@ class HiCsegCaller(BaseCaller):
 
     def call(self, params_dict={}, tune=True, **kwargs):
 
-        logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
+        TADcalling_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
 
         params_dict['distr_model'] = params_dict.get('distr_model', ["P"])
 
@@ -646,7 +518,7 @@ class MrTADFinderCaller(BaseCaller):
 
     def call(self, tune=False, **kwargs):
 
-        logger.debug("Calling %s" % (self.__class__.__name__))
+        TADcalling_logger.debug("Calling %s" % (self.__class__.__name__))
 
         caller_path = kwargs.get('caller_path', '../MrTADFinder/run_MrTADFinder.jl')
         output_dct = {}

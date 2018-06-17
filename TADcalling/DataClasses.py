@@ -5,7 +5,7 @@ or genomic tracks.
 
 from os import stat as file_stat
 from .utils import *
-from .logger import logger
+from .logger import TADcalling_logger
 import numpy as np
 import numpy.core.defchararray as npchar
 
