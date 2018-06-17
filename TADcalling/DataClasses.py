@@ -272,7 +272,8 @@ class GenomicRanges(object):
                 else:
                     indexes[coord1, :] = left_coord + 1, 2
             return indexes
-
+        elif mode == 'bin-boundariwise':
+            raise Exception('Mode not implemented: %s' % mode)
         else:
             raise Exception("The mode isn't understood: {}".format(mode))
 
@@ -298,6 +299,8 @@ class GenomicRanges(object):
             boundaries = np.array([self.data[i, 0] if indexes[i, 1] == 1 else self.data[i, 1] for i in range(self.data.shape[0])], dtype=int)
             distances[mask_zeros] = boundaries[mask_zeros] - closest
             return distances
+        elif mode == 'bin-boundariwise':
+            raise Exception('Mode not implemented: %s' % mode)
         else:
             raise Exception("The mode isn't understood: {}".format(mode))
 
