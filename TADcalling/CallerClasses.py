@@ -76,32 +76,6 @@ class BaseCaller(object):
 
         self._segmentations = {x: {} for x in datasets_labels}
 
-    def tune_matrix(self, input_mtx, remove_diagonal=True, fill_nans=True, undercut=True):
-        """
-        Tunes 2d matrix according to kwargs. Returns tuned matrix.
-        :param input_mtx: input 2d matrix
-        :param remove_diagonal: whether to remove diagonal or not (default True)
-        :param fill_nans: fill NaNs with 0 if presented (default True)
-        :param undercut: perform other tuning operations
-        """
-        mtx = input_mtx.copy()
-
-        if fill_nans:
-            mtx[np.isnan(mtx)] = 0
-
-        if remove_diagonal:
-            np.fill_diagonal(mtx, 0)
-
-        if undercut:
-            mn = np.percentile(mtx[mtx > 0], 1)
-            mx = np.percentile(mtx[mtx > 0], 99)
-            mtx[mtx <= mn] = mn
-            mtx[mtx >= mx] = mx
-            mtx = np.log(mtx)
-            mtx = mtx - np.min(mtx)
-
-        return mtx
-
     def convert_files(self, data_format, **kwargs):
         """
         TODO @agal Remove all the levels of data processing to the InteractionMatrix class
@@ -112,7 +86,6 @@ class BaseCaller(object):
         :param kwargs: Optional parameters for data coversion
         :return: None
         """
-        tune = kwargs.get('tune', False)
 
         assert data_format in ACCEPTED_FORMATS
 
@@ -121,7 +94,6 @@ class BaseCaller(object):
         resulting_files = []
         file_holder = 'files_{}'.format(original_format)
         param_dict = {
-            'tune': tune,
             'balance': self._metadata['balance'],
             'ch': self._metadata['chr'],
             'res': self._metadata['resolution']
@@ -224,11 +196,10 @@ class LavaburstCaller(BaseCaller):
         self._metadata['caller'] = 'Lavaburst'
         self._metadata['method'] = kwargs.get('method', 'armatus')
 
-    def call(self, params_data={}, tune=True, **kwargs):
+    def call(self, params_data={}, **kwargs):
         """
         Lavaburst segmentation calling for a set of parameters.
         :param params_dict: dictionary of parameters, containing gammas and methods
-        :param tune:
         :param kwargs:
         :return:
         """
@@ -246,10 +217,10 @@ class LavaburstCaller(BaseCaller):
             c = cooler.Cooler(f)
             output_dct = {}
 
-            mtx = c.matrix(balance=self._metadata['balance'], as_pixels=False).fetch(self._metadata['chr'],
+            mtx_orig = c.matrix(balance=self._metadata['balance'], as_pixels=False).fetch(self._metadata['chr'],
                                                                                      self._metadata['chr'])
-            if tune:
-                mtx = self.tune_matrix(mtx)
+            mtxObj = InteractionMatrix(mtx_orig)
+            mtx = mtxObj.fill_nans(0).remove_diagonal(1, 0).filter_extreme().log_transform(2).subtract_min().as_array()
 
             for gamma in params_dict['gamma']:
                 for method in params_dict['method']:
@@ -272,9 +243,11 @@ class LavaburstCaller(BaseCaller):
         :return:  2D numpy array where segments[:,0] are segment starts and segments[:,1] are segments end, each row corresponding to one segment
         """
 
+        # TODO @agal move this step to one level up
         if np.any(np.isnan(mtx)):
             TADcalling_logger.warning("NaNs in dataset, pease remove them first.")
 
+        # TODO @agal move this step to one level up
         if np.diagonal(mtx).sum() > 0:
             TADcalling_logger.warning(
                 "Note that diagonal is not removed. you might want to delete it to avoid noisy and not stable results. ")
@@ -319,14 +292,14 @@ class ArmatusCaller(BaseCaller):
         self._metadata['params'] = ['gamma']
         self._metadata['caller'] = 'Armatus'
 
-    def call(self, params_dict={}, tune=True, **kwargs):
+    def call(self, params_dict={}, **kwargs):
 
         TADcalling_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
 
         params_dict['gamma'] = params_dict.get('gamma', np.arange(0, 10, 1))
 
         if 'files_txt.gz' not in self._metadata.keys():
-            self.convert_files('txt.gz', tune=tune)
+            self.convert_files('txt.gz')
 
         for gamma in params_dict['gamma']:
             output_dct = {}
@@ -357,7 +330,7 @@ class InsulationCaller(BaseCaller):
         self._metadata['params'] = ['window', 'cutoff']
         self._metadata['caller'] = 'Insulation'
 
-    def call(self, params_dict={}, tune=True, **kwargs):
+    def call(self, params_dict={}, **kwargs):
 
         TADcalling_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
 
@@ -371,9 +344,6 @@ class InsulationCaller(BaseCaller):
             c = cooler.Cooler(f)
             mtx = c.matrix(balance=self._metadata['balance'], as_pixels=False)\
                 .fetch(self._metadata['chr'], self._metadata['chr'])
-
-            if tune:
-                mtx = self.tune_matrix(mtx)
 
             for window in params_dict['window']:
                 for cutoff in params_dict['cutoff']:
@@ -426,7 +396,7 @@ class DirectionalityCaller(BaseCaller):
         self._metadata['params'] = ['window', 'cutoff']
         self._metadata['caller'] = 'Directionality'
 
-    def call(self, params_dict={}, tune=True, **kwargs):
+    def call(self, params_dict={}, **kwargs):
 
         TADcalling_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
 
@@ -440,9 +410,6 @@ class DirectionalityCaller(BaseCaller):
             c = cooler.Cooler(f)
             mtx = c.matrix(balance=self._metadata['balance'], as_pixels=False)\
                 .fetch(self._metadata['chr'], self._metadata['chr'])
-
-            if tune:
-                mtx = self.tune_matrix(mtx)
 
             for window in params_dict['window']:
                 for cutoff in params_dict['cutoff']:
@@ -480,14 +447,14 @@ class HiCsegCaller(BaseCaller):
         self._metadata['params'] = ['distr_model']
         self._metadata['caller'] = 'HiCseg'
 
-    def call(self, params_dict={}, tune=True, **kwargs):
+    def call(self, params_dict={}, **kwargs):
 
         TADcalling_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
 
         params_dict['distr_model'] = params_dict.get('distr_model', ["P"])
 
         if 'files_txt' not in self._metadata.keys():
-            self.convert_files('txt', tune=tune)
+            self.convert_files('txt')
 
         for label, f in zip(self._metadata['labels'], self._metadata['files_txt']):
             for distr_model in params_dict['distr_model']:
@@ -516,7 +483,7 @@ class HiCsegCaller(BaseCaller):
 
 class MrTADFinderCaller(BaseCaller):
 
-    def call(self, tune=False, **kwargs):
+    def call(self, **kwargs):
 
         TADcalling_logger.debug("Calling %s" % (self.__class__.__name__))
 
@@ -524,7 +491,7 @@ class MrTADFinderCaller(BaseCaller):
         output_dct = {}
 
         if 'files_mr_sparse' not in self._metadata.keys():
-            self.convert_files('mr_sparse', tune=tune)
+            self.convert_files('mr_sparse')
 
         for label, f in zip(self._metadata['labels'], self._metadata['files_mr_sparse']):
             segmentation = self._call_single(f, caller_path=caller_path)
