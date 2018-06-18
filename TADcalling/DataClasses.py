@@ -229,8 +229,8 @@ class GenomicRanges(object):
         shared_1 = np.unique(GenomicRanges.TAD_bins(intersected[:, 0, :])).shape[0]
         # TODO: consider the formula.
         return amount_shared / (self.length + other.length - shared_1)
+
     # TODO: tests
-    # TODO: bin-boundariwise mode
     def find_closest(self, other, mode='boundariwise'):
         """
         Find closest feature in other for each feature
@@ -244,38 +244,54 @@ class GenomicRanges(object):
             return None
         v1 = np.copy(self.data)
         v2 = np.copy(other.data)
-        if mode == 'boundariwise':
-            ind_end = [np.unravel_index(*[func(np.abs(v2 - i)) for func in (np.argmin, np.shape)])  for i in v1[:, 1]]
-            ind_start = [np.unravel_index(*[func(np.abs(v2 - i)) for func in (np.argmin, np.shape)])  for i in v1[:, 0]]
-            return np.array([ind_start, ind_end], dtype=int)
+        if mode in ('boundariwise', 'bin-boundariwise'):
+            # find indices of closest boundaries in v2 regarding v1 end boundaries
+            index_end = [np.unravel_index(*[func(np.abs(v2.copy() - i)) for func in (np.argmin, np.shape)])  for i in v1[:, 1]]
+            # find indices of closest boundaries in v2 regarding v1 start boundaries
+            index_start = [np.unravel_index(*[func(np.abs(v2.copy() - i)) for func in (np.argmin, np.shape)])  for i in v1[:, 0]]
+            if mode == 'bin-boundariwise':
+                index_end = [(feature[0], 2) if v2[feature[0], 0] <= v1[i, 1] <= v2[feature[0], 1] else feature for i, feature in enumerate(index_end)]
+                index_start = [(feature[0], 2) if v2[feature[0], 0] <= v1[i, 0] <= v2[feature[0], 1] else feature for i, feature in enumerate(index_start)]
+            return np.array([index_start, index_end], dtype=int)  # return both start and end indices
 
         elif mode == 'binwise':
+            # find indices of the closest feature in v2 that precedes feature in v1
             left_closest = [k if k >= 0 else 0 for k in [sum(v2[:, 1] <= i[0]) - 1 for i in v1]]
-            right_closest = [k if k >= 0 else v2.shape[0] - 1 for k in [sum(v2[:, 0] >= i[1]) - 1 for i in v1]]
+            # find indices of the closest feature in v2 that follows feature in v1
+            right_closest = [k if v2.shape[0] > k >= 0 else v2.shape[0] - 1 for k in [v2.shape[0] - sum(v2[:, 0] >= i[1]) for i in v1]]
             indexes = np.zeros(v1.shape, dtype=int)
             for coord1, coords2 in enumerate(zip(left_closest, right_closest)):
-                left_coord, right_coord = coords2
-                diff = right_coord - left_coord
-                if diff <= 1:
-                    if v1[coord1, 0] == v2[left_coord, 0]:
+                left_coord, right_coord = coords2  # closest left and right feature in v2 regarding v1
+                diff = right_coord - left_coord  # difference in indices of two closest features in v2 regarding v1
+                intersecting = lambda arr1, arr2: (arr2[0] <= arr1[0] <= arr2[1]
+                                                   or arr2[0] <= arr1[1] <= arr2[1]
+                                                   or arr1[0] <= arr2[0] <= arr1[1]
+                                                   or arr1[0] <= arr2[1] <= arr1[1])
+                if diff == 1:  # 1 means left_coord is followed by right_coord, 0 means it is the same feature in v2
+                    if intersecting(v1[coord1], v2[left_coord]):
                         indexes[coord1, :] = left_coord, 2
-                    elif v1[coord1, 1] == v2[right_coord, 1]:
+                    elif intersecting(v1[coord1], v2[right_coord]):
                         indexes[coord1, :] = right_coord, 2
-                    elif v1[coord1, 0] < v2[left_coord, 1]:
+                    elif v1[coord1, 0] - v2[left_coord, 1] <= v2[right_coord, 0] - v1[coord1, 1]:
+                        # dist to left v2 feature is equal to or less than dist to right v2 feature
+                        indexes[coord1, :] = left_coord, 1  # the closest boundary in v2 to v1 feature
+                    else:
+                        # dist to left v2 feature is greater than dist to right v2 feature
+                        indexes[coord1, :] = right_coord, 0  # the closest boundary in v2 to v1 feature
+                elif diff == 0:  # 0 means left and right are the same in v2 i.e. v1 feature and v2 feature are either both first or both last
+                    if intersecting(v1[coord1], v2[left_coord]):
                         indexes[coord1, :] = left_coord, 2
-                    elif v1[coord1, 1] > v2[right_coord, 0]:
-                        indexes[coord1, :] = right_coord, 2
-                    elif v1[coord1, 0] - v2[left_coord, 1] < v1[coord1, 1] - v2[right_coord, 0]:
+                    elif v1[coord1, 0] - v2[left_coord, 1] > 0:
                         indexes[coord1, :] = left_coord, 1
                     else:
                         indexes[coord1, :] = right_coord, 0
                 else:
+                    # there are at least one feature in v2 between left and right closest v2 features
                     indexes[coord1, :] = left_coord + 1, 2
-            return indexes
-        elif mode == 'bin-boundariwise':
-            raise Exception('Mode not implemented: %s' % mode)
+            return indexes  # returns closest bins in v2 with code: 1 -- left, 0 -- right, 2 -- overlap 
         else:
             raise Exception("The mode isn't understood: {}".format(mode))
+
 
     # TODO: tests
     def dist_closest(self, other, mode='boundariwise'):
@@ -286,28 +302,30 @@ class GenomicRanges(object):
         indexes = self.find_closest(other, mode=mode)
         if indexes is None:
             return None
-        if mode == 'boundariwise':
+        v1 = np.copy(self.data)
+        v2 = np.copy(other.data)
+        if mode in ('boundariwise', 'bin-boundariwise'):
             ind_start, ind_end = indexes
-            dist_start = np.array([other.data[i[0], i[1]] for i in ind_start]) - self.data[:, 0]
-            dist_end = np.array([other.data[i[0], i[1]] for i in ind_end]) - self.data[:, 1]
+            mask_start, mask_end = ind_start[:, 1] < 2, ind_end[:, 1] < 2
+            dist_start, dist_end = np.zeros(ind_start.shape[0], dtype=int), np.zeros(ind_start.shape[0], dtype=int)
+            dist_start[mask_start] = np.array([v2[i[0], i[1]] for i in ind_start[mask_start]]) - v1[:, 0][mask_start]
+            dist_end[mask_end] = np.array([v2[i[0], i[1]] for i in ind_end[mask_end]]) - v1[:, 1][mask_end]
             return np.vstack((dist_start, dist_end)).T
         elif mode == 'binwise':
-            indexes = self.find_closest(other, mode=mode)
             distances = np.zeros(indexes.shape[0], dtype=int)
             mask_zeros = indexes[:, 1] < 2
-            closest = np.array([other.data[i[0], i[1]] for i in indexes[mask_zeros]], dtype=int)
-            boundaries = np.array([self.data[i, 0] if indexes[i, 1] == 1 else self.data[i, 1] for i in range(self.data.shape[0])], dtype=int)
-            distances[mask_zeros] = boundaries[mask_zeros] - closest
+            closest = np.array([v2[i[0], i[1]] for i in indexes[mask_zeros]], dtype=int)
+            boundaries = np.array([v1[i, 0] if indexes[i, 1] == 1 else v1[i, 1] for i in range(v1.shape[0])], dtype=int)
+            distances[mask_zeros] = closest - boundaries[mask_zeros]
             return distances
-        elif mode == 'bin-boundariwise':
-            raise Exception('Mode not implemented: %s' % mode)
         else:
             raise Exception("The mode isn't understood: {}".format(mode))
+
 
 # TODO: test this.
 def load_BED(filename):
     """
-    Return dictionary of GenomicRanges with chromosomes 
+    Return dictionary of GenomicRanges with chromosomes
     as keys from BED-like file. Can load 2-column file,
     3- and 6-column BED files.
     """
