@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 #from .utils import *
 from .CallerClasses import *
+from .InteractionMatrix import *
 from .DataClasses import *
 from .logger import *
 
