@@ -15,8 +15,8 @@ lc.load_segmentation( lc.call(0.9) )
 Ordinary mode:
 
 ```bash
-git clone https://github.com/agalitsyna/TADcalling.git
-cd TADcalling
+git clone https://github.com/dmitrymyl/TADreproduce.git
+cd TADreproduce/TADcalling
 pip install ./
 ```
 
