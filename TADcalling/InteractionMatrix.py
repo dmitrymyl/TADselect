@@ -28,8 +28,8 @@ def lazyProcessing(func):
 
             if self._nmods == 0:
                 self_copy = InteractionMatrix(mtx,
-                                               input_type='mtx',
-                                               transformations=self._transformations + [modification])
+                                              input_type='mtx',
+                                              transformations=self._transformations + [modification])
                 self_copy._nmods += 1
                 return self_copy
 
@@ -42,8 +42,8 @@ def lazyProcessing(func):
         else:
             if len(self._operations_list) == 0:
                 self_copy = InteractionMatrix(self._mtx,
-                                               input_type='mtx',
-                                               transformations=self._transformations)
+                                              input_type='mtx',
+                                              transformations=self._transformations)
                 kwargs.update({'push': True})
                 self_copy._operations_list.append((lazyProcessing(func), args, kwargs))
                 return self_copy
@@ -82,9 +82,9 @@ class InteractionMatrix(object):
         pass
 
     def convert_without_reading(self, input_filename, output_filename,
-                                 input_format=None,
-                                 output_format=None,
-                                 **kwargs):
+                                input_format=None,
+                                output_format=None,
+                                **kwargs):
         """
         Convert files/matrix without reading them into InteractionMatrix._mtx
         :param input_format:
@@ -94,7 +94,7 @@ class InteractionMatrix(object):
         :return:
         """
 
-        if type(input_filename)==np.ndarray:
+        if type(input_filename) == np.ndarray:
             input_format = 'mtx'
             mtx = input_filename
 
@@ -213,7 +213,7 @@ class InteractionMatrix(object):
             if remove_intermediary_files:
                 os.remove(outfile_txt + '.gz')
 
-        elif input_format=='mtx':
+        elif input_format == 'mtx':
 
             if 'txt' in output_format:
                 np.savetxt(output_filename, mtx, delimiter='\t')
@@ -260,7 +260,7 @@ class InteractionMatrix(object):
         TADcalling_logger.info("Log-transform of input mtx, base: %d", base)
         mtx = np.log(self._mtx) / np.log(base)
 
-        return mtx, 'log({})'.format(base), self._nmods+1
+        return mtx, 'log({})'.format(base), self._nmods + 1
 
     @lazyProcessing
     def subtract_min(self, **kwargs):
@@ -270,7 +270,7 @@ class InteractionMatrix(object):
         min_value = np.nanmin(self._mtx)
         mtx = self._mtx - min_value
 
-        return mtx, 'minSubtracted', self._nmods+1
+        return mtx, 'minSubtracted', self._nmods + 1
 
     @lazyProcessing
     def filter_extreme(self, min_percentile=1, max_percentile=99, **kwargs):
@@ -371,7 +371,6 @@ class InteractionMatrix(object):
 
         return mtx, 'addPseudocount', self._nmods + 1
 
-
     @lazyProcessing
     def fill_bins(self, bins='zeros', value=0, name='', **kwargs):
         """
@@ -386,13 +385,13 @@ class InteractionMatrix(object):
 
         mtx = self._mtx.copy()
 
-        if type(bins)==str:
+        if type(bins) == str:
             name = bins + name
-            if bins=='zeros':
-                idx = np.sum(mtx, axis=1)==0
+            if bins == 'zeros':
+                idx = np.sum(mtx, axis=1) == 0
             else:
                 TADcalling_logger.error("Fill bins mode {} not implemented yet".format(bins))
-        elif type(bins)==np.ndarray:
+        elif type(bins) == np.ndarray:
             idx = bins
         else:
             TADcalling_logger.error("bins type not recognised: {}".format(type(bins)))
@@ -419,7 +418,7 @@ class InteractionMatrix(object):
         if type(mask) == str:
             name = mask + name
             if mask == 'non-positive':
-                mask = mtx<=0
+                mask = mtx <= 0
             else:
                 TADcalling_logger.error("Fill mask mode {} not implemented yet".format(mask))
         elif type(mask) == np.ndarray:
@@ -430,7 +429,6 @@ class InteractionMatrix(object):
         mtx[mask] = value
 
         return mtx, 'fillMask({})'.format(name), self._nmods + 1
-
 
     @lazyProcessing
     def multiply_by(self, value=1, **kwargs):
@@ -444,7 +442,7 @@ class InteractionMatrix(object):
 
         mtx = self._mtx.copy()
 
-        mtx = mtx*value
+        mtx = mtx * value
 
         return mtx, 'multiplyBy({})'.format(value), self._nmods + 1
 
@@ -460,7 +458,7 @@ class InteractionMatrix(object):
 
         mtx = self._mtx.copy()
 
-        mtx = mtx+value
+        mtx = mtx + value
 
         return mtx, 'addValue({})'.format(value), self._nmods + 1
 
@@ -506,14 +504,14 @@ class InteractionMatrix(object):
             idx = bins_remove
 
         for i in bins_remove:
-            v_return[v_return>=i] += 1
+            v_return[v_return >= i] += 1
 
         return v_return
 
     def get_expected_matrix(self):
 
         length = len(self._mtx)
-        expected_vect = list(map( lambda x: self._mtx.diagonal(x).sum(), np.arange(length)))
+        expected_vect = list(map(lambda x: self._mtx.diagonal(x).sum(), np.arange(length)))
 
         mtx_ret = np.zeros((length, length))
 
@@ -535,7 +533,7 @@ class InteractionMatrix(object):
         obs = self._mtx.copy()
         exp = self.get_expected_matrix()
 
-        mtx = obs/exp
+        mtx = obs / exp
 
         return mtx, 'obsExp', self._nmods + 1
 
