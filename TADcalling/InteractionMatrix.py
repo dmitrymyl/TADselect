@@ -508,7 +508,7 @@ class InteractionMatrix(object):
 
         return v_return
 
-    def get_expected_matrix(self):
+    def get_expected_matrix(self):  # @agal what is it?
 
         length = len(self._mtx)
         expected_vect = list(map(lambda x: self._mtx.diagonal(x).sum(), np.arange(length)))

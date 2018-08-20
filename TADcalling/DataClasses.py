@@ -208,11 +208,17 @@ class GenomicRanges(object):
         elif coef == 'FDR TADs':
             return GenomicRanges.FDR(*map(GenomicRanges.TAD_bins, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
+        elif coef == 'PPV TADs':
+            return 1 - GenomicRanges.FDR(*map(GenomicRanges.TAD_bins, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
+
         elif coef == 'TPR boundaries':
             return GenomicRanges.TPR(*map(GenomicRanges.TAD_boundaries, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         elif coef == 'FDR boundaries':
             return GenomicRanges.FDR(*map(GenomicRanges.TAD_boundaries, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
+
+        elif coef == 'PPV boundaries':
+            return 1 - GenomicRanges.FDR(*map(GenomicRanges.TAD_boundaries, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         else:
             raise Exception('Coefficient not understood: {}'.format(coef))
