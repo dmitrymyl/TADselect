@@ -2,6 +2,8 @@
 Classes for TAD calling for various tools
 """
 
+#TODO: remove min_tad_size from everywhere to GRanges and Experiment
+
 # Universal imports
 from .utils import *
 from .logger import TADcalling_logger # as logger
@@ -12,6 +14,8 @@ from functools import partial
 import numpy as np
 import pandas as pd
 import cooler
+import glob
+import shutil
 
 # Class-specific imports
 import tadtool.tad
@@ -158,7 +162,7 @@ class BaseCaller(object):
                     'label': [x for i in range(length)],
                     'caller': [self._metadata['caller'] for i in range(length)]
                 }
-                if isinstance(y, int) or isinstance(y, float):
+                if isinstance(y, int) or isinstance(y, float) or isinstance(y, np.float_) or isinstance(y, np.int_):
                     y = [y]
                 for param, value in zip(params_names, y):
                     dct.update({param: value})
@@ -520,19 +524,102 @@ class MrTADFinderCaller(BaseCaller):
         return GenomicRanges(np.array(segments, dtype=int), data_type='segmentation')
 
 
+class ArrowheadCaller(BaseCaller):
+
+
+    def __init__(self, datasets_labels, datasets_files, data_format, **kwargs):
+        super(ArrowheadCaller, self).__init__(datasets_labels, datasets_files, data_format, **kwargs)
+        self._metadata['params'] = ['windowSize']
+        self._metadata['caller'] = 'Arrowhead'
+
+    def call(self, params_dict={}, **kwargs):
+
+        if 'files_hic' not in self._metadata.keys():
+            raise BasicCallerException("No hic file present for caller. Please, perform valid conversion!")
+
+        params_dict['windowSize'] = params_dict.get('windowSize', [2000])
+
+        remove_intermediates = kwargs.get('remove_intermediates', False)
+
+        new_folder = False
+        if not os.path.isdir("tmp"):
+            os.mkdir('tmp')
+            new_folder = True
+
+        for windowSize in params_dict['windowSize']:
+            output_dct = {}
+            for label, f in zip(self._metadata['labels'], self._metadata['files_hic']):
+
+                outmask = "tmp/{}.arrowhead.{}.tmp".format(label, windowSize)
+                segmentation = self._call_single(f,
+                                             outmask,
+                                             windowSize,
+                                             **kwargs)
+
+                output_dct[label] = deepcopy(segmentation)
+
+                if remove_intermediates:
+                    shutil.rmtree(outmask)
+
+            self._load_segmentations(output_dct,
+                                     (windowSize))
+
+        if new_folder and remove_intermediates:
+            shutil.rmtree("tmp")
+        return self._segmentations
+
+    def _call_single(self, infile, outmask,
+                     windowSize=2000,
+                     caller_path='./juicer_tools.1.8.9_jcuda.0.8.jar',
+                     java_path='java',
+                     **kwargs):
+
+        command = """{java} -Xmx2g -jar {caller_path} \
+         arrowhead -m {windowSize} \
+         -c {ch} \
+         -r {resolution} \
+         -k NONE \
+         --ignore_sparsity \
+         {infile_hic} \
+         {output_directory}""".format(caller_path=caller_path,
+                                      java=java_path,
+                                      windowSize=windowSize,
+                                      ch=self._metadata['chr'],
+                                      resolution=self._metadata['resolution'],
+                                      infile_hic=infile,
+                                      output_directory=outmask)
+
+        run_command(command)
+        try:
+            output_file = glob.glob(outmask + "/*")[0]
+            segments = \
+                pd.read_csv(output_file, sep='\t').sort_values('x1')[['x1', 'x2']].values/self._metadata['resolution']
+        except Exception as e:
+            segments = []
+
+        return GenomicRanges(np.array(segments, dtype=int), data_type='segmentation')
+
+
 class HiCExplorerCaller(BaseCaller):
+
+    def __init__(self, datasets_labels, datasets_files, data_format, **kwargs):
+        super(HiCExplorerCaller, self).__init__(datasets_labels, datasets_files, data_format, **kwargs)
+        self._metadata['params'] = ['minDepth', 'maxDepth', 'step', 'thresholdComparisons', 'delta', 'correction']
+        self._metadata['caller'] = 'HiCExplorer'
 
     def call(self, params_dict={}, **kwargs):
 
         if 'files_h5' not in self._metadata.keys():
             raise BasicCallerException("No h5 file present for caller. Please, perform valid conversion!")
 
-        params_dict['minDepth'] = params_dict.get('minDepth', [5])
-        params_dict['maxDepth'] = params_dict.get('minDepth', [10])
-        params_dict['step'] = params_dict.get('step', [1500])
+        params_dict['minDepth'] = params_dict.get('minDepth', [3*self._metadata['resolution']]) # At least 3 resolutions
+        params_dict['maxDepth'] = params_dict.get('maxDepth', [5*self._metadata['resolution']]) # At least 5 resolutions
+        params_dict['step'] = params_dict.get('step', [ self._metadata['resolution'] ]) # At least resolution
         params_dict['thresholdComparisons'] = params_dict.get('thresholdComparisons', [0.05])
         params_dict['delta'] = params_dict.get('delta', [0.01])
         params_dict['correction'] = params_dict.get('correction', ['fdr'])
+
+        remove_intermediates = kwargs.get('remove_intermediates', False)
 
         for minDepth in params_dict['minDepth']:
             for maxDepth in params_dict['maxDepth']:
@@ -542,7 +629,14 @@ class HiCExplorerCaller(BaseCaller):
                             for correction in params_dict['correction']:
                                 output_dct = {}
                                 for label, f in zip(self._metadata['labels'], self._metadata['files_h5']):
-                                    outmask = "tmp/{}.tmp".format(label)
+                                    outmask = \
+                                        "tmp/{label}.{minDepth}.{maxDepth}.{step}.{tC}.{delta}.{correction}.hicexplorer.tmp".format(label=label,
+                                                                                                                                    minDepth=minDepth,
+                                                                                                                                    maxDepth=maxDepth,
+                                                                                                                                    step=step,
+                                                                                                                                    tC=thresholdComparisons,
+                                                                                                                                    delta=delta,
+                                                                                                                                    correction=correction)
                                     segmentation = self._call_single(f,
                                                                      outmask,
                                                                      minDepth,
@@ -556,6 +650,10 @@ class HiCExplorerCaller(BaseCaller):
                                 self._load_segmentations(output_dct,
                                                          (minDepth, maxDepth, step,
                                                           thresholdComparisons, delta, correction))
+                                if remove_intermediates:
+                                    toremove=glob.glob(outmask+'*')
+                                    for f in toremove: os.remove(f)
+
 
         return self._segmentations
 
@@ -567,17 +665,161 @@ class HiCExplorerCaller(BaseCaller):
                      caller_path='hicFindTADs',
                      **kwargs):
 
-        command = """{} -m {} \
-                --outPrefix {} \
-                --minDepth {} \
-                --maxDepth {} \
-                --step {} \
-                --thresholdComparisons {} \
-                --delta {} \
-                --correctForMultipleTesting {} \
-                -p {}""".format(caller_path, infile, outmask, minDepth, maxDepth,
-                                step, thresholdComparisons, delta, correction, nthreads)
+        command = """{caller_path} -m {infile_h5} \
+                --outPrefix {out_prefix} \
+                --minDepth {minDepth} \
+                --maxDepth {maxDepth} \
+                --step {step} \
+                --thresholdComparisons {th} \
+                --delta {delta} \
+                --correctForMultipleTesting {correction} \
+                -p {nth}""".format(caller_path=caller_path,
+                                infile_h5=infile,
+                                out_prefix=outmask,
+                                minDepth=minDepth,
+                                maxDepth=maxDepth,
+                                step=step,
+                                th=thresholdComparisons,
+                                delta=delta,
+                                correction=correction,
+                                nth=nthreads)
 
         run_command(command)
 
-        #return GenomicRanges(np.array(segments, dtype=int), data_type='segmentation')
+        try:
+            output_file = glob.glob(outmask+"*_domains.bed")[0]
+            segments = pd.read_csv(output_file, sep='\t', header=None)[[1, 2]].values/self._metadata['resolution']
+
+        except Exception as e:
+            segments = []
+
+        return GenomicRanges(np.array(segments, dtype=int), data_type='segmentation')
+
+
+class TADtreeCaller(BaseCaller):
+
+#TODO @agal: Reading resulting tree files
+
+    def __init__(self, datasets_labels, datasets_files, data_format, **kwargs):
+        super(TADtreeCaller, self).__init__(datasets_labels, datasets_files, data_format, **kwargs)
+        self._metadata['params'] = ['max_TAD_size', 'max_tree_depth', 'boundary_index_p', 'boundary_index_q', 'gamma']
+        self._metadata['caller'] = 'TADtree'
+
+    def call(self, params_dict={}, **kwargs):
+
+        if 'files_txt' not in self._metadata.keys():
+            raise BasicCallerException("No txt file present for caller. Please, perform valid conversion!")
+
+        params_dict['max_TAD_size'] = params_dict.get("max_TAD_size", [50])    #S = 50  # max. size of TAD (in bins)
+        params_dict['max_tree_depth'] = params_dict.get("max_tree_depth", [25])    #M = 25  # max. number of TADs in each tad-tree
+        params_dict['boundary_index_p'] = params_dict.get("boundary_index_p", [3])     #p = 3  # boundary index parameter
+        params_dict['boundary_index_q'] = params_dict.get("boundary_index_q", [12])    #q = 12 # boundary index parameter
+        params_dict['gamma'] = params_dict.get("gamma", [500])                 #gamma = 500  # balance between boundary index and squared error in score function
+
+
+        for max_TAD_size in params_dict['max_TAD_size']:
+            for max_tree_depth in params_dict['max_tree_depth']:
+                for boundary_index_p in params_dict['boundary_index_p']:
+                    for boundary_index_q in params_dict['boundary_index_q']:
+                        for gamma in params_dict['gamma']:
+
+                            output_dct = {}
+
+                            for label, f in zip(self._metadata['labels'], self._metadata['files_txt']):
+
+                                outmask = \
+                                    "tmp/{label}.{S}.{M}.{bp}.{bq}.{gamma}.TADtree.tmp".format(
+                                        label=label,
+                                        S=max_TAD_size,
+                                        M=max_tree_depth,
+                                        bp=boundary_index_p,
+                                        bq=boundary_index_q,
+                                        gamma=gamma)
+
+                                towrite = \
+                                    "S = {}\nM = {}\np = {}\nq = {}\ngamma = {}\n\ncontact_map_path = {}\ncontact_map_name = {}\nN = {}\noutput_directory = {}".\
+                                        format(max_TAD_size, max_tree_depth, boundary_index_p, boundary_index_q, gamma,
+                                               f, label, 400, outmask)
+
+                                with open(outmask+".control_file", 'w') as control_file:
+                                    control_file.write(towrite)
+
+                                segmentation = self._call_single(outmask+".control_file", **kwargs)
+                                output_dct[label] = deepcopy(segmentation)
+
+                            self._load_segmentations(output_dct, (max_TAD_size,
+                                                                  max_tree_depth,
+                                                                  boundary_index_p,
+                                                                  boundary_index_q,
+                                                                  gamma))
+
+        return self._segmentations
+
+
+    def _call_single(self, control_file,
+                     caller_path="../bins/TADtree/TADtree.py",
+                     python_path='python2',
+                     **kwargs):
+
+        command = "{python} {caller_path} {control_file}".format(python=python_path,
+            caller_path=caller_path,
+            control_file=control_file)
+
+        run_command(command)
+
+        # TODO: @agal add parser pf tree files.
+        # Note that code works forever for some reason. Maybe we don't want to use this algo.
+
+        return None
+
+
+class TADbitCaller(BaseCaller):
+
+    def __init__(self, datasets_labels, datasets_files, data_format, **kwargs):
+        super(TADbitCaller, self).__init__(datasets_labels, datasets_files, data_format, **kwargs)
+        self._metadata['params'] = []
+        self._metadata['caller'] = 'TADbut'
+
+    def call(self, params_dict={}, nth=1, **kwargs):
+
+        if 'files_txt' not in self._metadata.keys():
+            raise BasicCallerException("No txt file present for caller. Please, perform valid conversion!")
+
+        output_dct = {}
+
+        for label, f in zip(self._metadata['labels'], self._metadata['files_txt']):
+
+            outmask = "tmp/{label}.TADbit.tmp".format(label=label)
+
+            segmentation = self._call_single(f, outmask, label=label, nth=nth, **kwargs)
+            output_dct[label] = deepcopy(segmentation)
+
+        self._load_segmentations(output_dct, ())
+
+        return self._segmentations
+
+    def _call_single(self, infile, outfile,
+                     label='tmp',
+                     nth=1,
+                     caller_path="../TADcalling/script_TADbit.py",
+                     python_path='~/anaconda3/envs/tadbit/bin/python',
+                     **kwargs):
+
+#~/anaconda3/envs/tadbit/bin/python ../TADcalling/script_TADbit.py ../data/test_S2.20000.chr2L.txt tmp/tadbit_output.txt S2 chr2L 20000 8
+
+        command = "{python} {caller_path} {infile} {outfile} {exp} {ch} {resolution} {nth} &>/dev/null".format(
+            python=python_path,
+            caller_path=caller_path,
+            infile=infile,
+            outfile=outfile,
+            exp=label,
+            ch=self._metadata['chr'],
+            resolution=self._metadata['resolution'],
+            nth=nth
+        )
+
+        run_command(command)
+
+        segments = pd.read_csv('tmp/example.output.txt', sep=' *')[['start', 'end']].values
+
+        return GenomicRanges(np.array(segments, dtype=int), data_type='segmentation')
