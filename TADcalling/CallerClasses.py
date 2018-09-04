@@ -12,6 +12,9 @@ ataClasses import GenomicRanges, load_BED
 from .InteractionMatrix import InteractionMatrix
 from copy import deepcopy
 from functools import partial
+from resource import getrusage as gru
+from resource import RUSAGE_SELF
+from datetime import datetime as dt
 import numpy as np
 import pandas as pd
 import cooler
@@ -24,6 +27,27 @@ import lavaburst
 from .templates import hicseg_template
 
 ACCEPTED_FORMATS = ['cool', 'txt', 'txt.gz', 'sparse', 'mr_sparse', 'hic', 'h5']
+
+
+def benchmark(func):
+    """
+    The benchmark decorator for class methods
+    that take self as the first positional argument
+    and return single object.
+    """
+    def wrapper(*args, **kwargs):
+        r0 = gru(RUSAGE_SELF)
+        t0 = dt.timestamp(dt.now())
+        retval = func(*args, **kwargs)
+        r = gru(RUSAGE_SELF)
+        t = dt.timestamp(dt.now())
+        args[0]._benchmark_list.append({"utime": r.ru_utime - r0.ru_utime,
+                                        "ctime": r.ru_stime - r0.ru_stime,
+                                        "walltime": t - t0,
+                                        "memory": r.ru_maxrss
+                                        })
+        return retval
+    return wrapper
 
 
 class BasicCallerException(Exception):
@@ -80,6 +104,17 @@ class BaseCaller(object):
         self._metadata = metadata
 
         self._segmentations = {x: {} for x in datasets_labels}
+
+        self._benchmark_list = list()
+        self._benchmark_df = pd.DataFrame()
+
+    def update_benchmark_df(self):
+        """
+        The procedure to transform data in self._benchmark_list
+        into self._benchmark_df. To prevent loss of data, do
+        not clear self._benchmark_list.
+        """
+        self._benchmark_df = pd.DataFrame(self._benchmark_list)
 
     def convert_files(self, data_format, **kwargs):
         """
@@ -236,6 +271,7 @@ class LavaburstCaller(BaseCaller):
                     else:
                         self._load_segmentations(output_dct, (gamma), label=label)
 
+    @benchmark
     def _call_single(self, mtx, gamma, good_bins='default',
                      method='armatus', max_intertad_size=3, max_tad_size=10000, **kwargs):
         """
@@ -313,6 +349,7 @@ class ArmatusCaller(BaseCaller):
                 output_dct[label] = deepcopy(segmentation)
             self._load_segmentations(output_dct, (gamma))
 
+    @benchmark
     def _call_single(self, mtx_name, gamma, good_bins='default',
                      max_intertad_size=3, max_tad_size=10000, caller_path='armatus', **kwargs):
 
@@ -357,6 +394,7 @@ class InsulationCaller(BaseCaller):
 
                     self._load_segmentations(output_dct, (window, cutoff), label=label)
 
+    @benchmark
     def _call_single(self, mtx, window, cutoff, max_intertad_size=3, max_tad_size=10000, **kwargs):
         """
         TODO: annotate, is size in bp or in genomic bins?
@@ -423,6 +461,7 @@ class DirectionalityCaller(BaseCaller):
 
                     self._load_segmentations(output_dct, (window, cutoff), label=label)
 
+    @benchmark
     def _call_single(self, mtx, window, cutoff, max_intertad_size=3, max_tad_size=10000, **kwargs):
 
         if np.any(np.isnan(mtx)):
@@ -468,6 +507,7 @@ class HiCsegCaller(BaseCaller):
 
                 self._load_segmentations(output_dct, (distr_model), label=label)
 
+    @benchmark
     def _call_single(self, mtx_name, distr_model,
                      max_intertad_size=3, max_tad_size=10000, binary_path='Rscript'):
 
@@ -504,6 +544,7 @@ class MrTADFinderCaller(BaseCaller):
 
         self._load_segmentations(output_dct, gamma) # TODO: fix, no gamma defined for MrTADFinder
 
+    @benchmark
     def _call_single(self, mtx_name, max_intertad_size=3, max_tad_size=10000,
                      binary_path='julia', **kwargs):
         # check usage in command below
@@ -569,6 +610,7 @@ class ArrowheadCaller(BaseCaller):
             shutil.rmtree("tmp")
         return self._segmentations
 
+    @benchmark
     def _call_single(self, infile, outmask,
                      windowSize=2000,
                      caller_path='./juicer_tools.1.8.9_jcuda.0.8.jar',
@@ -658,6 +700,7 @@ class HiCExplorerCaller(BaseCaller):
 
         return self._segmentations
 
+    @benchmark
     def _call_single(self, infile, outmask, minDepth, maxDepth, step,
                      thresholdComparisons=0.05,
                      delta=0.01,
@@ -756,7 +799,7 @@ class TADtreeCaller(BaseCaller):
 
         return self._segmentations
 
-
+    @benchmark
     def _call_single(self, control_file,
                      caller_path="../bins/TADtree/TADtree.py",
                      python_path='python2',
@@ -799,6 +842,7 @@ class TADbitCaller(BaseCaller):
 
         return self._segmentations
 
+    @benchmark
     def _call_single(self, infile, outfile,
                      label='tmp',
                      nth=1,
