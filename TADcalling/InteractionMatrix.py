@@ -58,7 +58,11 @@ def lazyProcessing(func):
 
 class InteractionMatrix(object):
 
-    def __init__(self, input_mtx, input_type='mtx', read=True, transformations='raw'):
+    def __init__(self, input_mtx,
+                 input_type='mtx',
+                 transformations='raw',
+                 ch='chr2L',
+                 balance=True):
         """
 
         :param input: input dataset with raw reads counts
@@ -72,16 +76,35 @@ class InteractionMatrix(object):
             self._nmods = 0
             self._operations_list = []
 
+        elif input_type == 'cool':
+            self._read_mtx(input_mtx, 'cool', ch=ch, balance=balance)
+            self._prepared_formats = [input_type]
+            self._transformations = [transformations]
+            self._nmods = 0
+            self._operations_list = []
+
         else:
             TADcalling_logger.warning("Input type {} currently not implemented. Skipping reading.".format(input_type))
 
-    def _read_mtx(self, input_mtx, file_format):
-        pass
+    def _read_mtx(self, input_cooler, file_format, ch='chr2L', balance=True):
+        self._mtx = cooler.Cooler(input_cooler).matrix(balance=balance, as_pixels=False).fetch(ch)
 
-    def _write_mtx(self, output):
-        pass
+    def _write_mtx(self, output_cooler, binsize, assembly_name, ch, chromsize):
 
-    def convert_without_reading(self, input_filename, output_filename,
+        self.compute()
+
+        chromsizes = pd.Series({ch: chromsize}, name='length')
+        bins = cooler.binnify(chromsizes, binsize)
+
+        print(self._mtx)
+        
+        pixels = cooler.io.ArrayLoader(bins, self._mtx, chunksize=10000000)
+        cooler.io.create(output_cooler,
+                         bins,
+                         pixels,
+                         assembly=assembly_name)
+
+    def convert(self, input_filename, output_filename,
                                 input_format=None,
                                 output_format=None,
                                 **kwargs):
@@ -192,10 +215,10 @@ class InteractionMatrix(object):
             with open(outfile_tmp, 'w'):
                 pass
 
-            outfile_tmp = self.convert_without_reading(input_filename=input_filename,
-                                                       output_filename=outfile_tmp,
-                                                       input_format='cool',
-                                                       output_format='sparse')
+            outfile_tmp = self.convert(input_filename=input_filename,
+                                       output_filename=outfile_tmp,
+                                       input_format='cool',
+                                       output_format='sparse')
 
             command1 = "awk '{{print 0, $1, $2, 0, 0, $4, $5, 1, $7}}' {} > {}".format(outfile_tmp, outfile_txt)
             command2 = "gzip -f {}".format(outfile_txt)
@@ -487,11 +510,9 @@ class InteractionMatrix(object):
     @staticmethod
     def restore_bins(v, bins_remove):
         """
-        TODO @agal check on real example
-
         Restoring coordinates of bins (v) after bins removal.
 
-        :param v:
+        :param v: coordinates in bins (of TADs starts, for example)
         :param bins_remove:
         :return:
         """
@@ -537,5 +558,14 @@ class InteractionMatrix(object):
 
         return mtx, 'obsExp', self._nmods + 1
 
+    @lazyProcessing
+    def interpolate_bins(self, bins_remove, **kwargs):
+        """
+        interpolate bad bins with surrounding values.
+        TODO @agal
+        :param kwargs:
+        :return:
+        """
+        pass
 
 #TODO @agal  add modifications: 'subsample', 'add_noise', 'ic', 'vc'
