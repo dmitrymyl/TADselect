@@ -7,8 +7,7 @@ Classes for TAD calling for various tools
 # Universal imports
 from .utils import *
 from .logger import TADcalling_logger # as logger
-from .Dls
-ataClasses import GenomicRanges, load_BED
+from .DataClasses import GenomicRanges, load_BED
 from .InteractionMatrix import InteractionMatrix
 from copy import deepcopy
 from functools import partial
