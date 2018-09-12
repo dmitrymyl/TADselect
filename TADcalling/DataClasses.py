@@ -42,6 +42,7 @@ class GenomicRanges(object):
 
         self.length = self.data.shape[0]
         self.data_type = data_type
+        self.sizes = self.data[:, 1] - self.data[:, 0]
         metadata = kwargs.get('metadata', {})
         if not isinstance(metadata, dict):
             raise TypeError("Metadata should be a dictionary not a %s" % str(type(metadata)))
@@ -240,11 +241,25 @@ class GenomicRanges(object):
     def find_closest(self, other, mode='boundariwise'):
         """
         Find closest feature in other for each feature
-        in self. Two modes are available:
-        binwise - distances for bins;
-        boundariwise - distances from boundaries in self to
-        boundaries in other.
-        Return arrays of indexes.
+        in self. Return array of indexes with additional information.
+        *Boundariwise mode*
+        Search closest boundaries in other for start and end boundaries
+        in self. Return indexes in manner [index_start, index_end],
+        where index_start is for start boundaries in self and so.
+        index_* is composed as [[row1, col1], [row2, col2], ...],
+        where colN can be only 0 (start of feature in other)
+        or 1 (end of feature in other).
+        *Bin-boundariwise mode*
+        Treat features as boundariwise mode except boundary in self
+        overlaps feature in other. Then the distance is zero. The output
+        is the same as in boundariwise mode but colN can be 2 indicating
+        overlap of boundary and feature.
+        *Binwise mode*
+        Find closest bins in other for each bin in self. The output is
+        [[row1, col1], [row2, col2], ...], where colN can be zero (means
+        feature in self is leftmost regarding feature in other),
+        one (feature in self is rightmost regarding feature in other)
+        or two (features overlap).
         """
         if not self.data.shape[0] * other.data.shape[0]:
             return None
@@ -299,11 +314,23 @@ class GenomicRanges(object):
             raise Exception("The mode isn't understood: {}".format(mode))
 
 
-    # TODO: tests
     def dist_closest(self, other, mode='boundariwise'):
         """
-        Find distances to closest features in other for each
-        feature in self.
+        For each feature in self find distances to closest feature
+        in other.
+        *Boundariwise mode*
+        Count distances from start and end boundaries of self
+        to any closest boundaries of other. Returns 2-dim array
+        [[dist_from_start1, dist_from_end1], [dist_from_start2, dist_from_end2], ...]
+        *Binwise mode*
+        Count distances between bins. In case some bin in self
+        overlaps bin in other, ttakes he distance between them as zero.
+        Returns 1-dim array [dist_from_bin1, dist_from_bin2, ...]
+        *Bin-boundariwise mode*
+        Count distances from start and end boundaries of self
+        to any closest boundary of other. In case boundary in self
+        overlaps bin in other, takes the distance as zero.
+        Returns 2-dim array as in boundariwise mode.
         """
         indexes = self.find_closest(other, mode=mode)
         if indexes is None:
@@ -332,8 +359,10 @@ class GenomicRanges(object):
 def load_BED(filename):
     """
     Return dictionary of GenomicRanges with chromosomes
-    as keys from BED-like file. Can load 2-column file,
-    3- and 6-column BED files.
+    as keys from BED-like file. Can load:
+    2-column file (start, end),
+    3-column BED file (chr, start, end),
+    6-column BED file (chr, start, end, name, score, strand).
     """
     buff = np.loadtxt(filename, dtype=object, ndmin=2)
     if buff is None:
