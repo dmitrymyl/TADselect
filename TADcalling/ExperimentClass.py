@@ -1,7 +1,6 @@
 from . import CallerClasses, DataClasses
 from .utils import *
-from .logger import TADcalling_logger
-from itertools import product, chain
+from itertools import product
 from copy import deepcopy
 
 caller_dict = {'armatus': CallerClasses.ArmatusCaller,
@@ -69,7 +68,6 @@ class Experiment(object):
                                'mrtadfinder': None,
                                'hicexplorer': None}
 
-
         self.history = {'ranges': [deepcopy(self.default_ranges[self.callername])],
                         'best_gamma': list(),
                         'best_func': list(),
@@ -90,7 +88,7 @@ class Experiment(object):
         :param obtained_gamma_range: a pd.Series with range of parameter
         :param mode: simulated, convergence, border_events, sizes
         """
-        if not obtained_gamma_range is None:
+        if obtained_gamma_range is not None:
             if obtained_gamma_range.shape[0] == 1:
                 gamma_range = list(deepcopy(obtained_gamma_range[0]))
                 arr_shape = len(gamma_range)
@@ -142,7 +140,6 @@ class Experiment(object):
             else:
                 raise Exception("Mode for data generation not understood: %s" % mode)
 
-
     @staticmethod
     def background_calc(segmentation_sizes, arr_shape, background_method='size'):
         """
@@ -151,7 +148,7 @@ class Experiment(object):
         :param segmentation_sizes: nested list of segmentation sizes
         :param arr_shape: shape of data = [gamma1, gamma2, ...]
         :param background_method: a background function to be calculated
-        """        
+        """
         if background_method == 'size':
             return np.array([np.reshape([np.mean(i) for i in labelled], arr_shape) for labelled in segmentation_sizes])
         elif background_method == 'dispersion':
@@ -187,7 +184,7 @@ class Experiment(object):
             distances = [segmentation.dist_closest(track, mode='bin-boundariwise').flatten()
                          for segmentation in segmentation_list[0]]
             return [np.array([-np.mean(np.abs(i)) for i in distances])]
-        
+
         elif optimisation == 'fitting-average':
             midpoint = kwargs.get('average', 100)
             return [np.reshape([-np.abs(midpoint - np.mean(segmentation.sizes))
@@ -247,7 +244,6 @@ class Experiment(object):
             raise Exception("Mode not understood: %s" % mode)
 
         if background_method == 'dispersion':
-            # TODO: cannot guess how to assign percentiles of values to them in array
             raise Exception("Dispersion not implemented!")
 
         elif background_method == 'size':
@@ -286,7 +282,7 @@ class Experiment(object):
         """
         Takes 1-dim arr1 and n-dim arr2 and returns
         pd.Multiindex of product(arr1, arr2).
-        In case n > 1, flattens items of 
+        In case n > 1, flattens items of
         product(arr1, arr2).
         """
         prod = list(product(arr1, arr2))
@@ -298,7 +294,7 @@ class Experiment(object):
         except TypeError:
             return pd.MultiIndex.from_tuples(prod, names=['label', 'gamma1'])
 
-    @staticmethod    
+    @staticmethod
     def plot_tads(mtx, tads, bgn=0, end=250, fname=None, plot_size=None):
         """
         Plot given matrix and segmentaion in given bin coordinates.
@@ -311,7 +307,7 @@ class Experiment(object):
         :param plot_size: if given (type list), the plot will be of that size
         """
         tads_color = 'blue'
-        
+
         # plot tuning
         if plot_size:
             plt.figure(figsize=plot_size)
@@ -324,7 +320,7 @@ class Experiment(object):
             tad_end = i[1] - bgn
             plt.plot([tad_bgn, tad_end], [tad_bgn, tad_bgn], color=tads_color)
             plt.plot([tad_end, tad_end], [tad_bgn, tad_end], color=tads_color)
-        
+
         if fname:
             plt.savefig(fname)
 
@@ -375,19 +371,19 @@ class Experiment(object):
         heatmap_source = optimisation_data.unstack(level=0).unstack(level=0).groupby('gamma2').aggregate(np.mean)
         plt.rcParams['figure.figsize'] = 15, 10
 
-        for i, func in zip((1,2,4,5), optimisation_data.columns):
-            plt.subplot(2,3,i)
+        for i, func in zip((1, 2, 4, 5), optimisation_data.columns):
+            plt.subplot(2, 3, i)
             sns.heatmap(heatmap_source[func][label].loc[obtained_gamma_range[1],
                                                         obtained_gamma_range[0]], 
                         cmap='Reds', center=0.5, vmin=0, vmax=1)
             plt.title(func)
 
         background_source = background_data.unstack(level=0).unstack(level=0).groupby('gamma2').aggregate(np.mean)
-        plt.subplot(2,3,3)
+        plt.subplot(2, 3, 3)
         sns.heatmap(background_source['size'][label].loc[obtained_gamma_range[1],
                                                          obtained_gamma_range[0]], cmap='Reds')
         plt.title(background_method)
-        plt.subplot(2,3,6)
+        plt.subplot(2, 3, 6)
         Experiment.plot_tads(mtx_1, best_segmentation)
         plt.title('Best segmentation with gamma{}'.format(best_gamma))
 
@@ -446,7 +442,8 @@ class Experiment(object):
             columns = ['Difference']
             opt_index = Experiment.chain_multiindex(self.caller._metadata['labels'], gamma_arr)
         elif self.optimisation == 'border_events':
-            raise Exception("optimisation not implemented: %s" % self.optimisation)
+            columns = ['Distance']
+            opt_index = Experiment.chain_multiindex(self.caller._metadata['labels'], gamma_arr)
         else:
             raise Exception("optimisation not understood: %s" % self.optimisation)
 
@@ -459,7 +456,7 @@ class Experiment(object):
         self.background_data = Experiment.append_data(self.background_data, pd.DataFrame(background_handler))
 
         if regime != 'silent':
-            if self.history['ranges'][-2].shape[0] == 1: # if gamma is 1-dim
+            if self.history['ranges'][-2].shape[0] == 1:  # if gamma is 1-dim
                 Experiment.plot_one_dim(self.caller,
                                         self.history['ranges'][-2],
                                         self.optimisation_data,
@@ -476,7 +473,7 @@ class Experiment(object):
         else:
             # if no gamma
             pass
-    
+
     def iterative_approach(self, **kwargs):
         threshold = kwargs.get('threshold', 0.01)
         iterations = kwargs.get('iterations', 10)
@@ -486,7 +483,7 @@ class Experiment(object):
             print("best gamma value is: {}".format(self.best_gamma))
             print("new range is:\n{}".format(self.history['ranges'][-1]))
 
-        if self.history['ranges'][-2].shape[0] == 1: # if gamma is 1-dim
+        if self.history['ranges'][-2].shape[0] == 1:  # if gamma is 1-dim
             Experiment.plot_one_dim(self.caller,
                                     self.history['ranges'][-2],
                                     self.optimisation_data,
