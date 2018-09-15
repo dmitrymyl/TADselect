@@ -29,10 +29,12 @@ class GenomicRanges(object):
         """
         buff = np.array(arr_object, dtype=int, ndmin=2)
         if buff.shape[1] == 2:
+            buff = buff[buff[:, 0].argsort(), :]
             self.data = buff
             self.coverage = np.full_like(self.data[:, 0], 1, dtype=int)
         elif buff.shape[1] == 3:
-            self.data = buff[:, 0:1]
+            buff = buff[buff[:, 0].argsort(), :]
+            self.data = buff[:, 0:2]
             self.coverage = buff[:, 2]
         elif buff is None or buff.shape[1] == 0:  # No segments in a segmentation, TODO: @dmyl check
             self.data = np.zeros((1, 2))
@@ -313,7 +315,6 @@ class GenomicRanges(object):
         else:
             raise Exception("The mode isn't understood: {}".format(mode))
 
-
     def dist_closest(self, other, mode='boundariwise'):
         """
         For each feature in self find distances to closest feature
@@ -353,6 +354,17 @@ class GenomicRanges(object):
             return distances
         else:
             raise Exception("The mode isn't understood: {}".format(mode))
+
+    def dot_in_triangle(self, dot):
+        dist_x = dot[0] - self.data[:, 0]
+        mask = dist_x > 0
+        bin_index = sum(mask) - 1
+        bin_x = self.data[bin_index, 0]
+        bin_y = self.data[bin_index, 1]
+        if bin_x <= dot[0] <= bin_y and bin_x <= dot[1] <= bin_y:
+            return bin_index
+        else:
+            return None
 
 
 # TODO: test this.
