@@ -97,7 +97,7 @@ class InteractionMatrix(object):
         bins = cooler.binnify(chromsizes, binsize)
 
         print(self._mtx)
-        
+
         pixels = cooler.io.ArrayLoader(bins, self._mtx, chunksize=10000000)
         cooler.io.create(output_cooler,
                          bins,
