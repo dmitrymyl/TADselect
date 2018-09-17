@@ -105,9 +105,7 @@ class InteractionMatrix(object):
                          assembly=assembly_name)
 
     def convert(self, input_filename, output_filename,
-                                input_format=None,
-                                output_format=None,
-                                **kwargs):
+                input_format=None, output_format=None, **kwargs):
         """
         Convert files/matrix without reading them into InteractionMatrix._mtx
         :param input_format:
@@ -188,9 +186,12 @@ class InteractionMatrix(object):
             return output_filename
 
         elif 'txt' in input_format and output_format == 'cool':
-            # TODO @agal implement this option
-            # https://github.com/hms-dbmi/higlass/issues/100#issuecomment-302183312
-            TADcalling_logger.error('Option currently not implemented.')
+            mtx = np.loadtxt(input_filename)
+            chromsizes = pd.Series({ch: resolution * mtx.shape[0]}, name='length')
+            bins = cooler.binnify(chromsizes, resolution)
+
+            pixels = cooler.io.ArrayLoader(bins, mtx, chunksize=10000000)
+            cooler.io.create(output_filename, bins, pixels)
 
         elif input_format == 'cool' and output_format == 'h5':
             output_prefix = '.'.join(input_filename.split('.')[:-1])
@@ -247,7 +248,11 @@ class InteractionMatrix(object):
                     output_filename += '.gz'
 
             elif output_format == 'cool':
-                TADcalling_logger.error('Option currently not implemented.')
+                chromsizes = pd.Series({ch: resolution * mtx.shape[0]}, name='length')
+                bins = cooler.binnify(chromsizes, resolution)
+
+                pixels = cooler.io.ArrayLoader(bins, mtx, chunksize=10000000)
+                cooler.io.create(output_filename, bins, pixels)
 
         return output_filename
 
