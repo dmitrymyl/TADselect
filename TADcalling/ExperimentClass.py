@@ -22,7 +22,7 @@ default_funcs = {'simulated': ['TPR TADs', 'TPR boundaries', 'PPV TADs', 'PPV bo
 
 class Experiment(object):
 
-    def __init__(self, datasets_labels, datasets_files, data_format, callername, track_file=None, **kwargs):
+    def __init__(self, datasets_labels, datasets_files, data_format, callername, track_file=None, scaling=False, **kwargs):
 
         mode = kwargs.get('mode', 'iterative')
         background_method = kwargs.get('background_method', 'size')
@@ -49,8 +49,13 @@ class Experiment(object):
             self.caller = caller_dict[callername](datasets_labels, datasets_files, data_format, **kwargs)
             self.callername = callername
 
+        if scaling:
+            scale = self.caller._metadata['resolution']
+        else:
+            scale = 1
+
         if track_file:
-            self.track = DataClasses.load_BED(track_file)[self.caller._metadata['chr']]
+            self.track = DataClasses.load_BED(track_file, scale=scale)[self.caller._metadata['chr']]
         else:
             self.track = None
 
@@ -60,9 +65,9 @@ class Experiment(object):
                                'lavavariance': pd.Series([np.arange(-5, 5.5, 0.5)], index=['gamma']),
                                'lavacorner': pd.Series([np.arange(-5, 5.5, 0.5)], index=['gamma']),
                                'lavamodularity': pd.Series([np.arange(-5, 5.5, 0.5)], index=['gamma']),
-                               'insulation': pd.Series([np.arange(1,11,1) * self.caller._metadata['resolution'],
+                               'insulation': pd.Series([np.arange(1, 11, 1) * self.caller._metadata['resolution'],
                                                         [0.1, 0.2, 0.5, 0.7]], index=['window', 'cutoff']),
-                               'directionality': pd.Series([np.arange(1,11,1) * self.caller._metadata['resolution'],
+                               'directionality': pd.Series([np.arange(1, 11, 1) * self.caller._metadata['resolution'],
                                                             [0.1, 0.2, 0.5, 0.7]], index=['window', 'cutoff']),
                                'hicseg': None,
                                'mrtadfinder': None,
@@ -71,9 +76,9 @@ class Experiment(object):
         self.history = {'ranges': [deepcopy(self.default_ranges[self.callername])],
                         'best_gamma': list(),
                         'best_func': list(),
-                        'iteration': 0} # dictionary for history events
-        self.optimisation_data = pd.DataFrame() # handles TPR, PPV, JI, OC...
-        self.background_data = pd.DataFrame() # handles mean size or dispersions
+                        'iteration': 0}  # dictionary for history events
+        self.optimisation_data = pd.DataFrame()  # handles TPR, PPV, JI, OC...
+        self.background_data = pd.DataFrame()  # handles mean size or dispersions
 
         # min and max mean size of TADs in bins, user is able to redefine them.
         self.profile = {'size': [2, 100],
@@ -472,7 +477,7 @@ class Experiment(object):
 
 class ExperimentNoGamma(object):
 
-    def __init__(self, datasets_labels, datasets_files, data_format, callername, track_file=None, **kwargs):
+    def __init__(self, datasets_labels, datasets_files, data_format, callername, track_file=None, scaling=False, **kwargs):
 
         mode = kwargs.get('mode', 'iterative')
         background_method = kwargs.get('background_method', 'size')
@@ -499,8 +504,13 @@ class ExperimentNoGamma(object):
             self.caller = caller_dict[callername](datasets_labels, datasets_files, data_format, **kwargs)
             self.callername = callername
 
+        if scaling:
+            scale = self.caller._metadata['resolution']
+        else:
+            scale = 1
+
         if track_file:
-            self.track = DataClasses.load_BED(track_file)[self.caller._metadata['chr']]
+            self.track = DataClasses.load_BED(track_file, scale=scale)[self.caller._metadata['chr']]
         else:
             self.track = None
 

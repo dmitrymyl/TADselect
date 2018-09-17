@@ -16,7 +16,7 @@ class GenomicRanges(object):
     Basic class for any genomic ranges.
     """
 
-    def __init__(self, arr_object, data_type='simulation', **kwargs):
+    def __init__(self, arr_object, data_type='simulation', scale=1, **kwargs):
         """
         Initialize base genomic ranges object.
         :param arr_object (:obj:`collection`): any array-like object
@@ -31,11 +31,11 @@ class GenomicRanges(object):
         buff = np.array(arr_object, dtype=int, ndmin=2)
         if buff.shape[1] == 2:
             buff = buff[buff[:, 0].argsort(), :]
-            self.data = buff
+            self.data = buff / scale
             self.coverage = np.full_like(self.data[:, 0], 1, dtype=int)
         elif buff.shape[1] == 3:
             buff = buff[buff[:, 0].argsort(), :]
-            self.data = buff[:, 0:2]
+            self.data = buff[:, 0:2] / scale
             self.coverage = buff[:, 2]
         elif buff is None or buff.shape[1] == 0:  # No segments in a segmentation, TODO: @dmyl check
             self.data = np.zeros((1, 2))
@@ -392,7 +392,7 @@ class GenomicRanges(object):
             np.savetxt(filename, self.data, fmt='%d', delimiter='\t')
 
 
-def load_BED(filename):
+def load_BED(filename, scale=1):
     """
     Return dictionary of GenomicRanges with chromosomes
     as keys from BED-like file. Can load:
@@ -406,14 +406,14 @@ def load_BED(filename):
     elif buff.shape[1] not in (2, 3, 6):
         raise Exception("Given file is not BED-like.")
     elif buff.shape[1] in (0, 2):
-        return {"chr1": GenomicRanges(buff)}
+        return {"chr1": GenomicRanges(buff, scale=scale)}
     else:
         chrms = np.unique(buff[:, 0])
         indices = [np.searchsorted(buff[:, 0], chrm) for chrm in chrms]
         if buff.shape[1] == 3:
-            return {chrm: GenomicRanges(arr) for chrm, arr in zip(chrms, np.vsplit(buff[:, 1:], indices[1:]))}
+            return {chrm: GenomicRanges(arr, scale=scale) for chrm, arr in zip(chrms, np.vsplit(buff[:, 1:], indices[1:]))}
         if buff.shape[1] == 6:
-            return {chrm: GenomicRanges(arr) for chrm, arr in zip(chrms, np.vsplit(buff[:, [1, 2, 4]], indices[1:]))}
+            return {chrm: GenomicRanges(arr, scale=scale) for chrm, arr in zip(chrms, np.vsplit(buff[:, [1, 2, 4]], indices[1:]))}
 
 
 def generate_TADs(mtx_size, min_tadsize, max_tadsize, min_intertadsize, max_intertadsize):

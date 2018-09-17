@@ -525,7 +525,7 @@ class InteractionMatrix(object):
             idx = bins_remove
 
         for i in bins_remove:
-            v_return[v_return >= i] += 1
+            v_return[v_return >= idx] += 1
 
         return v_return
 
