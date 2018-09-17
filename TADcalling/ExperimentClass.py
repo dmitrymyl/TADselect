@@ -88,57 +88,32 @@ class Experiment(object):
         :param obtained_gamma_range: a pd.Series with range of parameter
         :param mode: simulated, convergence, border_events, sizes
         """
-        if obtained_gamma_range is not None:
-            if obtained_gamma_range.shape[0] == 1:
-                gamma_range = list(deepcopy(obtained_gamma_range[0]))
-                arr_shape = len(gamma_range)
-            else:
-                gamma_range = list(product(*obtained_gamma_range))
-                arr_shape = [len(dim) for dim in obtained_gamma_range]
+        if obtained_gamma_range.shape[0] == 1:
+            gamma_range = list(deepcopy(obtained_gamma_range[0]))
+            arr_shape = len(gamma_range)
+        else:
+            gamma_range = list(product(*obtained_gamma_range))
+            arr_shape = [len(dim) for dim in obtained_gamma_range]
 
-            if mode in ('simulated', 'border_events', 'fitting-average'):
-                label = caller._metadata['labels'][0]
-                segmentations = [caller._segmentations[label][gamma] for gamma in gamma_range]
-                return [segmentations], arr_shape, gamma_range
+        if mode in ('simulated', 'border_events', 'fitting-average'):
+            label = caller._metadata['labels'][0]
+            segmentations = [caller._segmentations[label][gamma] for gamma in gamma_range]
+            return [segmentations], arr_shape, gamma_range
 
-            elif mode == 'convergence':
-                label_rep1 = list(filter(lambda i: "rep1" in i, caller._metadata['labels']))[0]
-                label_rep2 = list(filter(lambda i: "rep2" in i, caller._metadata['labels']))[0]
-                segmentations_rep1 = [caller._segmentations[label_rep1][gamma] for gamma in gamma_range]
-                segmentations_rep2 = [caller._segmentations[label_rep2][gamma] for gamma in gamma_range]
-                return [segmentations_rep1, segmentations_rep2], arr_shape, gamma_range
+        elif mode == 'convergence':
+            label_rep1 = list(filter(lambda i: "rep1" in i, caller._metadata['labels']))[0]
+            label_rep2 = list(filter(lambda i: "rep2" in i, caller._metadata['labels']))[0]
+            segmentations_rep1 = [caller._segmentations[label_rep1][gamma] for gamma in gamma_range]
+            segmentations_rep2 = [caller._segmentations[label_rep2][gamma] for gamma in gamma_range]
+            return [segmentations_rep1, segmentations_rep2], arr_shape, gamma_range
 
-            elif mode == 'sizes':
-                segmentation_sizes = [[caller._segmentations[label][gamma].sizes for gamma in gamma_range]
-                                      for label in caller._metadata['labels']]
-                return segmentation_sizes, arr_shape, gamma_range
-
-            else:
-                raise Exception("Mode for data generation not understood: %s" % mode)
+        elif mode == 'sizes':
+            segmentation_sizes = [[caller._segmentations[label][gamma].sizes for gamma in gamma_range]
+                                  for label in caller._metadata['labels']]
+            return segmentation_sizes, arr_shape, gamma_range
 
         else:
-            gamma_range = None
-            arr_shape = 1
-
-            if mode in ('simulated', 'border_events'):
-                label = caller._metadata['labels'][0]
-                segmentations = [caller._segmentations[label]]
-                return segmentations, arr_shape, gamma_range
-
-            elif mode == 'convergence':
-                label_rep1 = list(filter(lambda i: "rep1" in i, caller._metadata['labels']))[0]
-                label_rep2 = list(filter(lambda i: "rep2" in i, caller._metadata['labels']))[0]
-                segmentations_rep1 = [caller._segmentations[label_rep1]]
-                segmentations_rep2 = [caller._segmentations[label_rep2]]
-                return segmentations_rep1, segmentations_rep2, arr_shape, gamma_range
-
-            elif mode == 'sizes':
-                segmentation_sizes = [[caller._segmentations[label].data[:, 1] - self.caller._segmentations[label].data[:, 0]]
-                                      for label in caller._metadata['labels']]
-                return segmentation_sizes, arr_shape, gamma_range
-
-            else:
-                raise Exception("Mode for data generation not understood: %s" % mode)
+            raise Exception("Mode for data generation not understood: %s" % mode)
 
     @staticmethod
     def background_calc(segmentation_sizes, arr_shape, background_method='size'):
@@ -406,8 +381,7 @@ class Experiment(object):
         """
         mode = kwargs.get('mode', 'primary')
         regime = kwargs.get('regime', 'silent')
-        if self.history['ranges'][-1] is None:
-            pass
+
         background_method = kwargs.get('background_method', self.background_method)
 
         self.caller.call(self.history['ranges'][-1])
@@ -470,9 +444,6 @@ class Experiment(object):
                                         self.background_data,
                                         self.best_gamma,
                                         background_method)
-        else:
-            # if no gamma
-            pass
 
     def iterative_approach(self, **kwargs):
         threshold = kwargs.get('threshold', 0.01)
@@ -497,3 +468,133 @@ class Experiment(object):
                                     self.background_data,
                                     self.best_gamma,
                                     self.background_method)
+
+
+class ExperimentNoGamma(object):
+
+    def __init__(self, datasets_labels, datasets_files, data_format, callername, track_file=None, **kwargs):
+
+        mode = kwargs.get('mode', 'iterative')
+        background_method = kwargs.get('background_method', 'size')
+        optimisation = kwargs.get('optimisation', 'convergence')
+
+        if mode not in ('iterative', 'user'):
+            raise Exception("Mode not understood: %s" % mode)
+        else:
+            self.mode = mode
+
+        if background_method not in ('size', 'dispersion'):
+            raise Exception("Background method not understood: %s" % background_method)
+        else:
+            self.background_method = background_method
+
+        if optimisation not in ('convergence', 'simulated', 'border_events', 'fitting-average'):
+            raise Exception("optimisation method not understood: %s" % optimisation)
+        else:
+            self.optimisation = optimisation
+
+        if callername not in caller_dict.keys():
+            raise Exception("Caller not understood: %s" % caller)
+        else:
+            self.caller = caller_dict[callername](datasets_labels, datasets_files, data_format, **kwargs)
+            self.callername = callername
+
+        if track_file:
+            self.track = DataClasses.load_BED(track_file)[self.caller._metadata['chr']]
+        else:
+            self.track = None
+
+        self.results = {'optimisation': None, 'background': None}
+        self.profile = {'size': [2, 100],
+                        'dispersion': [0.05, 0.95],
+                        'midpoint': 500000 / self.caller._metadata['resolution']}
+
+    @staticmethod
+    def data_generation(caller, mode):
+        """
+        Generates data from segmentations of caller specific to a certain mode.
+        :param caller: a CallerClasses class with generated segmentations
+        :param mode: simulated, convergence, border_events, sizes
+        """
+        if mode in ('simulated', 'border_events'):
+            label = caller._metadata['labels'][0]
+            segmentations = [caller._segmentations[label]]
+            return segmentations
+
+        elif mode == 'convergence':
+            label_rep1 = list(filter(lambda i: "rep1" in i, caller._metadata['labels']))[0]
+            label_rep2 = list(filter(lambda i: "rep2" in i, caller._metadata['labels']))[0]
+            segmentations_rep1 = caller._segmentations[label_rep1]
+            segmentations_rep2 = caller._segmentations[label_rep2]
+            return [segmentations_rep1, segmentations_rep2]
+
+        elif mode == 'sizes':
+            segmentation_sizes = [[caller._segmentations[label].sizes]
+                                  for label in caller._metadata['labels']]
+            return segmentation_sizes
+        else:
+            raise Exception("Mode for data generation not understood: %s" % mode)
+
+    @staticmethod
+    def background_calc(segmentation_sizes, background_method='size'):
+        """
+        Calculates background function: mean size of TADs or
+        dispersion of sizes for each segmentation.
+        :param segmentation_sizes: nested list of segmentation sizes
+        :param background_method: a background function to be calculated
+        """
+        if background_method == 'size':
+            return np.array([[np.mean(i) for i in labelled] for labelled in segmentation_sizes])
+        elif background_method == 'dispersion':
+            return np.array([[np.std(i) for i in labelled] for labelled in segmentation_sizes])
+        else:
+            raise Exception("Background method not understood: %s" % background_method)
+
+    @staticmethod
+    def optimised_calc(segmentation_list, optimisation, **kwargs):
+        """
+        Calculates function to be optimised: TPRs and FDRs for
+        simulated segmentations, convergence between two replica
+        or distances to the closest genome features based
+        on track file.
+        :param segmentation_list: contains one or two nested lists with segmentations
+        :param optimisation: an optimisation mode to be calculated
+        :param track: a GenomicRanges instance of some genomic track to be used
+        """
+
+        if optimisation == 'simulated':
+            track = kwargs.get('track', None)
+            return list(map(np.array, ([segmentation.count_coef(track, coef=function)
+                                       for segmentation in segmentation_list[0]]
+                                       for function in ('TPR TADs', 'PPV TADs', 'TPR boundaries', 'PPV boundaries'))))
+
+        elif optimisation == 'convergence':
+            return list(map(np.array, [[segmentation_list[0][i].count_coef(segmentation_list[1][i], coef=function)
+                                       for i in range(len(segmentation_list[0]))]
+                                       for function in ('JI TADs', 'OC TADs', 'JI boundaries', 'OC boundaries')]))
+
+        elif optimisation == 'border_events':
+            distances = [segmentation.dist_closest(track, mode='bin-boundariwise').flatten()
+                         for segmentation in segmentation_list[0]]
+            return [np.array([-np.mean(np.abs(i)) for i in distances])]
+
+        elif optimisation == 'fitting-average':
+            midpoint = kwargs.get('average', 100)
+            return [[-np.abs(midpoint - np.mean(segmentation.sizes)) for segmentation in segmentation_list[0]]]
+        else:
+            raise Exception("optimisation method not understood: %s" % optimisation)
+
+    def call(self, **kwargs):
+        """
+        Perform one segmentation call, estimate and save
+        background and optimisation values.
+        """
+
+        background_method = kwargs.get('background_method', self.background_method)
+
+        self.caller.call()
+
+        segmentation_sizes = ExperimentNoGamma.data_generation(self.caller, 'sizes')
+        self.results['background'] = ExperimentNoGamma.background_calc(segmentation_sizes, background_method=background_method)
+        segmentation_list = ExperimentNoGamma.data_generation(self.caller, self.optimisation)
+        self.results['optimisation'] = ExperimentNoGamma.optimised_calc(segmentation_list, self.optimisation, track=self.track, average=self.profile['midpoint'])    
