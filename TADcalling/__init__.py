@@ -3,6 +3,7 @@
 from .CallerClasses import *
 from .InteractionMatrix import *
 from .DataClasses import *
+from .ExperimentClass import *
 from .logger import *
 
 __version__ = "0.0.2"

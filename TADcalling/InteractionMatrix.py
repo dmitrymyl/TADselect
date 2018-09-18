@@ -62,7 +62,7 @@ class InteractionMatrix(object):
                  input_type='mtx',
                  transformations='raw',
                  ch='chr2L',
-                 balance=True):
+                 balance=False):
         """
 
         :param input: input dataset with raw reads counts
@@ -132,7 +132,7 @@ class InteractionMatrix(object):
         remove_intermediary_files = kwargs.get('remove_intermediary_files', True)
         balance = kwargs.get('balance', False)
 
-        if input_format == 'cool' and 'txt' in output_format:
+        if 'cool' in input_format and 'txt' in output_format:
             output_prefix = '.'.join(input_filename.split('.')[:-1])
             output_filename = output_prefix + '.{}.txt'.format(chromosome)
 
@@ -148,7 +148,7 @@ class InteractionMatrix(object):
 
             return output_filename
 
-        elif input_format == 'cool' and output_format == 'sparse':
+        elif 'cool' in input_format and output_format == 'sparse':
 
             output_prefix = '.'.join(input_filename.split('.')[:-1])
             output_filename = output_prefix + '.{}.sparse.txt'.format(chromosome)
@@ -164,7 +164,7 @@ class InteractionMatrix(object):
 
             return output_filename
 
-        elif input_format == 'cool' and 'mr_sparse' in output_format:
+        elif 'cool' in input_format and 'mr_sparse' in output_format:
             output_prefix = '.'.join(input_filename.split('.')[:-1])
             output_filename = output_prefix + '.{}.mr_sparse.txt'.format(chromosome)
 
@@ -185,7 +185,7 @@ class InteractionMatrix(object):
 
             return output_filename
 
-        elif 'txt' in input_format and output_format == 'cool':
+        elif 'txt' in input_format and 'cool' in output_format:
             mtx = np.loadtxt(input_filename)
             chromsizes = pd.Series({ch: resolution * mtx.shape[0]}, name='length')
             bins = cooler.binnify(chromsizes, resolution)
@@ -193,7 +193,7 @@ class InteractionMatrix(object):
             pixels = cooler.io.ArrayLoader(bins, mtx, chunksize=10000000)
             cooler.io.create(output_filename, bins, pixels)
 
-        elif input_format == 'cool' and output_format == 'h5':
+        elif 'cool' in input_format and output_format == 'h5':
             output_prefix = '.'.join(input_filename.split('.')[:-1])
             output_filename = output_prefix + '.h5'
             command = "hicExport --inFile {} --outFileName {} --inputFormat cool --outputFormat h5" \
@@ -201,7 +201,7 @@ class InteractionMatrix(object):
             run_command(command)
             return output_filename
 
-        elif input_format == 'cool' and output_format == 'hic':
+        elif 'cool' in input_format and output_format == 'hic':
 
             binary_path = kwargs.get('binary_path', 'java')
             juicer_path = kwargs.get('juicer_path', './juicer_tools.1.8.9_jcuda.0.8.jar')

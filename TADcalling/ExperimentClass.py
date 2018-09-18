@@ -12,6 +12,9 @@ caller_dict = {'armatus': CallerClasses.ArmatusCaller,
                'insulation': CallerClasses.InsulationCaller,
                'directionality': CallerClasses.DirectionalityCaller,
                'hicseg': CallerClasses.HiCsegCaller,
+               'hicseg_p': CallerClasses.HiCsegPCaller,
+               'hicseg_g': CallerClasses.HiCsegGCaller,
+               'hicseg_b': CallerClasses.HiCsegBCaller,
                'mrtadfinder': CallerClasses.MrTADFinderCaller,
                'hicexplorer': CallerClasses.HiCExplorerCaller}
 
@@ -477,11 +480,12 @@ class Experiment(object):
 
 class ExperimentNoGamma(object):
 
-    def __init__(self, datasets_labels, datasets_files, data_format, callername, track_file=None, scaling=False, **kwargs):
+    def __init__(self, datasets_labels, datasets_files, data_format, callername, key=None, track_file=None, scaling=False, **kwargs):
 
         mode = kwargs.get('mode', 'iterative')
         background_method = kwargs.get('background_method', 'size')
         optimisation = kwargs.get('optimisation', 'convergence')
+        self._key = key
 
         if mode not in ('iterative', 'user'):
             raise Exception("Mode not understood: %s" % mode)
@@ -520,7 +524,7 @@ class ExperimentNoGamma(object):
                         'midpoint': 500000 / self.caller._metadata['resolution']}
 
     @staticmethod
-    def data_generation(caller, mode):
+    def data_generation(caller, mode, key=None):
         """
         Generates data from segmentations of caller specific to a certain mode.
         :param caller: a CallerClasses class with generated segmentations
@@ -534,12 +538,12 @@ class ExperimentNoGamma(object):
         elif mode == 'convergence':
             label_rep1 = list(filter(lambda i: "rep1" in i, caller._metadata['labels']))[0]
             label_rep2 = list(filter(lambda i: "rep2" in i, caller._metadata['labels']))[0]
-            segmentations_rep1 = caller._segmentations[label_rep1]
-            segmentations_rep2 = caller._segmentations[label_rep2]
+            segmentations_rep1 = caller._segmentations[label_rep1][key]
+            segmentations_rep2 = caller._segmentations[label_rep2][key]
             return [segmentations_rep1, segmentations_rep2]
 
         elif mode == 'sizes':
-            segmentation_sizes = [[caller._segmentations[label].sizes]
+            segmentation_sizes = [[caller._segmentations[label][key].sizes]
                                   for label in caller._metadata['labels']]
             return segmentation_sizes
         else:
@@ -575,12 +579,11 @@ class ExperimentNoGamma(object):
         if optimisation == 'simulated':
             track = kwargs.get('track', None)
             return list(map(np.array, ([segmentation.count_coef(track, coef=function)
-                                       for segmentation in segmentation_list[0]]
+                                        for segmentation in segmentation_list[0]]
                                        for function in ('TPR TADs', 'PPV TADs', 'TPR boundaries', 'PPV boundaries'))))
 
         elif optimisation == 'convergence':
-            return list(map(np.array, [[segmentation_list[0][i].count_coef(segmentation_list[1][i], coef=function)
-                                       for i in range(len(segmentation_list[0]))]
+            return list(map(np.array, [segmentation_list[0].count_coef(segmentation_list[1], coef=function)
                                        for function in ('JI TADs', 'OC TADs', 'JI boundaries', 'OC boundaries')]))
 
         elif optimisation == 'border_events':
@@ -604,7 +607,7 @@ class ExperimentNoGamma(object):
 
         self.caller.call()
 
-        segmentation_sizes = ExperimentNoGamma.data_generation(self.caller, 'sizes')
+        segmentation_sizes = ExperimentNoGamma.data_generation(self.caller, 'sizes', key=self._key)
         self.results['background'] = ExperimentNoGamma.background_calc(segmentation_sizes, background_method=background_method)
-        segmentation_list = ExperimentNoGamma.data_generation(self.caller, self.optimisation)
+        segmentation_list = ExperimentNoGamma.data_generation(self.caller, self.optimisation, key=self._key)
         self.results['optimisation'] = ExperimentNoGamma.optimised_calc(segmentation_list, self.optimisation, track=self.track, average=self.profile['midpoint'])    

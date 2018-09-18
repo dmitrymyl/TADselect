@@ -489,12 +489,13 @@ class HiCsegCaller(BaseCaller):
         super(HiCsegCaller, self).__init__(datasets_labels, datasets_files, data_format, **kwargs)
         self._metadata['params'] = ['distr_model']
         self._metadata['caller'] = 'HiCseg'
+        self._metadata['distr_model'] = kwargs.get('distr_model', 'P')
 
     def call(self, params_dict={}, **kwargs):
 
         TADcalling_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
 
-        params_dict['distr_model'] = params_dict.get('distr_model', ["P"])
+        params_dict['distr_model'] = params_dict.get('distr_model', [self._metadata['distr_model']])
 
         if 'files_txt' not in self._metadata.keys():
             self.convert_files('txt')
@@ -523,6 +524,11 @@ class HiCsegCaller(BaseCaller):
         segments = segments[mask]
 
         return GenomicRanges(np.array(segments, dtype=int), data_type='segmentation')
+
+
+HiCsegPCaller = partial(HiCsegCaller, distr_model='P')
+HiCsegGCaller = partial(HiCsegCaller, distr_model='G')
+HiCsegBCaller = partial(HiCsegCaller, distr_model='B')
 
 
 class MrTADFinderCaller(BaseCaller):
