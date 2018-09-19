@@ -31,11 +31,15 @@ class GenomicRanges(object):
         buff = np.array(arr_object, dtype=int, ndmin=2)
         if buff.shape[1] == 2:
             buff = buff[buff[:, 0].argsort(), :]
-            self.data = buff / scale
+            if scale != 1:
+                self.data = buff / scale
+            self.data = buff
             self.coverage = np.full_like(self.data[:, 0], 1, dtype=int)
         elif buff.shape[1] == 3:
             buff = buff[buff[:, 0].argsort(), :]
-            self.data = buff[:, 0:2] / scale
+            if scale != 1:
+                self.data = buff[:, 0:2] / scale
+            self.data = buff[:, 0:2]
             self.coverage = buff[:, 2]
         elif buff is None or buff.shape[1] == 0:  # No segments in a segmentation, TODO: @dmyl check
             self.data = np.zeros((1, 2))
@@ -442,7 +446,7 @@ def generate_TADs(mtx_size, min_tadsize, max_tadsize, min_intertadsize, max_inte
             range_buffer.append([mtx_index, mtx_index + sizes[size_index]])
             mtx_index += sizes[size_index]
         size_index += 1
-    return DataClasses.GenomicRanges(range_buffer)
+    return GenomicRanges(range_buffer)
 
 
 def generate_matrix(mtx_size, tads, kdiag, kt, kd, krandom, knoise, c, max_tadsize, **kwargs):
@@ -521,9 +525,12 @@ def simulate_HiC(mtx_size, min_tadsize, max_tadsize, min_intertadsize,
     dispersion = kwargs.get('dispersion', 0.01)
 
     segmentation = generate_TADs(mtx_size, min_tadsize, max_tadsize, min_intertadsize, max_intertadsize)
+    print(segmentation)
     segmentation.save(tads_filename, filetype='TADs')
 
     hic_mtx = generate_matrix(mtx_size, segmentation, kdiag, kt, kd, krandom,
                               knoise, c, max_tadsize, pseudo=pseudo, noise=noise,
                               interactions=interactions, dispersion=dispersion)
-    np.savetxt(mtx_filename, hic_mtx, fmt="%d", delimiter='\t')
+    mtxObj = InteractionMatrix(hic_mtx)
+    mtxObj._write_mtx(mtx_filename, 1, None, None, 1 * mtxObj._mtx.shape[0])
+    # np.savetxt(mtx_filename, hic_mtx, fmt="%d", delimiter='\t')
