@@ -8,4 +8,5 @@ for i in range(5):
                                 min_intertadsize=0,
                                 max_intertadsize=2,
                                 tads_filename='../data/simTADs.iter{}.noise{}.txt'.format(i + 1, noise),
-                                mtx_filename='../data/simMTX.iter{}.noise{}.cool'.format(i + 1, noise))
+                                mtx_filename='../data/simMTX.iter{}.noise{}.cool'.format(i + 1, noise),
+                                noise=noise)
