@@ -72,7 +72,10 @@ def generate_matrix(mtx_size, tads, kdiag, kt, kd, krandom, knoise, c, max_tadsi
     # add interactions
     for _ in range(interactions):
         interaction_x = np.random.choice(range(4253))
-        interaction_y = scipy.stats.randint.rvs(max(0, int(interaction_x - max_tadsize * 4 / 3)), interaction_x)
+        if interaction_x != 0:
+            interaction_y = scipy.stats.randint.rvs(max(0, int(interaction_x - max_tadsize * 4 / 3)), interaction_x)
+        else:
+            interaction_y = 0
         mu_mtx[interaction_x, interaction_y] += kd * (interaction_x - interaction_y + pseudo) ** c
 
     print('interactions added')
