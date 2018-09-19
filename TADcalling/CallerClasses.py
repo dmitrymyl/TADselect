@@ -259,8 +259,8 @@ class LavaburstCaller(BaseCaller):
             mtx_orig = c.matrix(balance=self._metadata['balance'], as_pixels=False).fetch(self._metadata['chr'],
                                                                                      self._metadata['chr'])
             mtxObj = InteractionMatrix(mtx_orig)
-            mtx = mtxObj.fill_nans(0).remove_diagonal(1, 0).filter_extreme().log_transform(2).subtract_min().as_array()
-
+            #mtx = mtxObj.fill_nans(0).remove_diagonal(1, 0).filter_extreme().log_transform(2).subtract_min().as_array()
+            mtx = mtxObj
             for gamma in params_dict['gamma']:
                 for method in params_dict['method']:
                     segmentation = self._call_single(mtx, gamma, method=method, **kwargs)

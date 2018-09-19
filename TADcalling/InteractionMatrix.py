@@ -75,6 +75,7 @@ class InteractionMatrix(object):
             self._transformations = [transformations]
             self._nmods = 0
             self._operations_list = []
+            self._size = self._mtx.shape[0]
 
         elif input_type == 'cool':
             self._read_mtx(input_mtx, 'cool', ch=ch, balance=balance)
@@ -82,6 +83,7 @@ class InteractionMatrix(object):
             self._transformations = [transformations]
             self._nmods = 0
             self._operations_list = []
+            self._size = self._mtx.shape[0]
 
         else:
             TADcalling_logger.warning("Input type {} currently not implemented. Skipping reading.".format(input_type))

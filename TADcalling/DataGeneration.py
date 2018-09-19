@@ -61,10 +61,13 @@ def generate_matrix(mtx_size, tads, kdiag, kt, kd, krandom, knoise, c, max_tadsi
     # add noise
     for _ in range(int(mtx_size * noise)):
         random_x = np.random.choice(range(4253))
-        dots = np.array(range(random_x))
-        prob_dots = krandom * (random_x - dots + pseudo) ** c
-        prob_dots /= sum(prob_dots)
-        random_y = np.random.choice(range(random_x), p=prob_dots)
+        if random_x != 0:
+            dots = np.array(range(random_x))
+            prob_dots = krandom * (random_x - dots + pseudo) ** c
+            prob_dots /= sum(prob_dots)
+            random_y = np.random.choice(range(random_x), p=prob_dots)
+        else:
+            random_y = 0
         mu_mtx[random_x, random_y] += knoise
 
     print('noise added')

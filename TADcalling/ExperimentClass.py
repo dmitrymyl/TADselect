@@ -2,6 +2,8 @@ from . import CallerClasses, DataClasses
 from .utils import *
 from itertools import product
 from copy import deepcopy
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 caller_dict = {'armatus': CallerClasses.ArmatusCaller,
                'lavaburst': CallerClasses.LavaburstCaller,
@@ -455,7 +457,7 @@ class Experiment(object):
 
     def iterative_approach(self, **kwargs):
         threshold = kwargs.get('threshold', 0.01)
-        iterations = kwargs.get('iterations', 10)
+        iterations = kwargs.get('iterations', 5)
         while (self.history['ranges'][-1][0][1] - self.history['ranges'][-1][0][0]) > threshold and \
               (self.history['iteration'] < iterations):
             self.call()
