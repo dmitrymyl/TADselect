@@ -396,7 +396,7 @@ class GenomicRanges(object):
             np.savetxt(filename, self.data, fmt='%d', delimiter='\t')
 
 
-def load_BED(filename, scale=1):
+def load_BED(filename, scale=1, chrm=None):
     """
     Return dictionary of GenomicRanges with chromosomes
     as keys from BED-like file. Can load:
@@ -410,7 +410,9 @@ def load_BED(filename, scale=1):
     elif buff.shape[1] not in (2, 3, 6):
         raise Exception("Given file is not BED-like.")
     elif buff.shape[1] in (0, 2):
-        return {"chr1": GenomicRanges(buff, scale=scale)}
+        if chrm is None:
+            chrm = 'chr1'
+        return {chrm: GenomicRanges(buff, scale=scale)}
     else:
         chrms = np.unique(buff[:, 0])
         indices = [np.searchsorted(buff[:, 0], chrm) for chrm in chrms]

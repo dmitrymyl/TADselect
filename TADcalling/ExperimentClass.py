@@ -27,7 +27,7 @@ default_funcs = {'simulated': ['TPR TADs', 'TPR boundaries', 'PPV TADs', 'PPV bo
 
 class Experiment(object):
 
-    def __init__(self, datasets_labels, datasets_files, data_format, callername, track_file=None, scaling=False, **kwargs):
+    def __init__(self, datasets_labels, datasets_files, data_format, chr, callername, track_file=None, scaling=False, **kwargs):
 
         mode = kwargs.get('mode', 'iterative')
         background_method = kwargs.get('background_method', 'size')
@@ -51,7 +51,7 @@ class Experiment(object):
         if callername not in caller_dict.keys():
             raise Exception("Caller not understood: %s" % caller)
         else:
-            self.caller = caller_dict[callername](datasets_labels, datasets_files, data_format, **kwargs)
+            self.caller = caller_dict[callername](datasets_labels, datasets_files, data_format, chr=chr, **kwargs)
             self.callername = callername
 
         if scaling:
@@ -60,7 +60,7 @@ class Experiment(object):
             scale = 1
 
         if track_file:
-            self.track = DataClasses.load_BED(track_file, scale=scale)[self.caller._metadata['chr']]
+            self.track = DataClasses.load_BED(track_file, scale=scale, chrm=chr)[self.caller._metadata['chr']]
         else:
             self.track = None
 
@@ -69,7 +69,7 @@ class Experiment(object):
                                'lavaarmatus': pd.Series([np.arange(-5, 5.5, 0.5)], index=['gamma']),
                                'lavavariance': pd.Series([np.arange(-5, 5.5, 0.5)], index=['gamma']),
                                'lavacorner': pd.Series([np.arange(-5, 5.5, 0.5)], index=['gamma']),
-                               'lavamodularity': pd.Series([np.arange(-5, 5.5, 0.5)], index=['gamma']),
+                               'lavamodularity': pd.Series([np.arange(5, 15.5, 0.5)], index=['gamma']),
                                'insulation': pd.Series([np.arange(1, 11, 1) * self.caller._metadata['resolution'],
                                                         [0.1, 0.2, 0.5, 0.7]], index=['window', 'cutoff']),
                                'directionality': pd.Series([np.arange(1, 11, 1) * self.caller._metadata['resolution'],
@@ -310,7 +310,7 @@ class Experiment(object):
             plt.savefig(fname)
 
     @staticmethod
-    def plot_one_dim(caller, obtained_gamma_range, optimisation_data, background_data, best_gamma):
+    def plot_one_dim(caller, obtained_gamma_range, optimisation_data, background_data, best_gamma, filename=None):
         """
         Plots three-panel plot: optimisation data, background data for given range of gammas
         and best segmentation concerning both data.
@@ -327,7 +327,8 @@ class Experiment(object):
         best_segmentation = caller._segmentations[label][best_gamma[0]].data
         plt.rcParams['figure.figsize'] = 10, 10
         plt.subplot(221)
-        plt.plot(optimisation_data.loc[label].loc[obtained_gamma_range[0]])
+        plt.ylim(0, 1)
+        plt.plot(optimisation_data.loc[label].loc[obtained_gamma_range[0]], alpha=0.7)
         plt.legend(labels=optimisation_data.loc[label].columns)
         plt.subplot(222)
         plt.plot(background_data.loc[label].loc[obtained_gamma_range[0]])
@@ -335,9 +336,11 @@ class Experiment(object):
         plt.subplot(223)
         Experiment.plot_tads(mtx_1, best_segmentation)
         plt.title('Best segmentation with gamma{}'.format(best_gamma))
+        if filename:
+            plt.savefig(filename)
 
     @staticmethod
-    def plot_two_dim(caller, obtained_gamma_range, optimisation_data, background_data, best_gamma, background_method):
+    def plot_two_dim(caller, obtained_gamma_range, optimisation_data, background_data, best_gamma, background_method, filename=None):
         """
         Plots six-panel plot: optimisation data, background data for given range of gammas
         and best segmentation concerning both data in slice of the first two gammas.
@@ -359,7 +362,7 @@ class Experiment(object):
         for i, func in zip((1, 2, 4, 5), optimisation_data.columns):
             plt.subplot(2, 3, i)
             sns.heatmap(heatmap_source[func][label].loc[obtained_gamma_range[1],
-                                                        obtained_gamma_range[0]], 
+                                                        obtained_gamma_range[0]],
                         cmap='Reds', center=0.5, vmin=0, vmax=1)
             plt.title(func)
 
@@ -371,6 +374,8 @@ class Experiment(object):
         plt.subplot(2, 3, 6)
         Experiment.plot_tads(mtx_1, best_segmentation)
         plt.title('Best segmentation with gamma{}'.format(best_gamma))
+        if filename:
+            plt.savefig(filename)
 
     @staticmethod
     def append_data(data1, data2):
@@ -458,6 +463,7 @@ class Experiment(object):
     def iterative_approach(self, **kwargs):
         threshold = kwargs.get('threshold', 0.01)
         iterations = kwargs.get('iterations', 5)
+        plt_filename = kwargs.get('filename', 'sample.png')
         while (self.history['ranges'][-1][0][1] - self.history['ranges'][-1][0][0]) > threshold and \
               (self.history['iteration'] < iterations):
             self.call()
@@ -469,7 +475,8 @@ class Experiment(object):
                                     self.history['ranges'][-2],
                                     self.optimisation_data,
                                     self.background_data,
-                                    self.best_gamma)
+                                    self.best_gamma,
+                                    filename=plt_filename)
 
         elif self.history['ranges'][-2].shape[0] > 1:  # if gamma is n-dim
             Experiment.plot_two_dim(self.caller,
@@ -477,7 +484,8 @@ class Experiment(object):
                                     self.optimisation_data,
                                     self.background_data,
                                     self.best_gamma,
-                                    self.background_method)
+                                    self.background_method,
+                                    filename=plt_filename)
 
 
 class ExperimentNoGamma(object):

@@ -257,10 +257,10 @@ class LavaburstCaller(BaseCaller):
             output_dct = {}
 
             mtx_orig = c.matrix(balance=self._metadata['balance'], as_pixels=False).fetch(self._metadata['chr'],
-                                                                                     self._metadata['chr'])
+                                                                                          self._metadata['chr'])
             mtxObj = InteractionMatrix(mtx_orig)
             #mtx = mtxObj.fill_nans(0).remove_diagonal(1, 0).filter_extreme().log_transform(2).subtract_min().as_array()
-            mtx = mtxObj
+            mtx = np.array(mtxObj.fill_nans(0).as_array(), dtype=float)
             for gamma in params_dict['gamma']:
                 for method in params_dict['method']:
                     segmentation = self._call_single(mtx, gamma, method=method, **kwargs)
@@ -285,7 +285,7 @@ class LavaburstCaller(BaseCaller):
 
         # TODO @agal move this step to one level up
         if np.any(np.isnan(mtx)):
-            TADcalling_logger.warning("NaNs in dataset, pease remove them first.")
+            TADcalling_logger.warning("NaNs in dataset, please remove them first.")
 
         # TODO @agal move this step to one level up
         if np.diagonal(mtx).sum() > 0:
