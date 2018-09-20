@@ -24,6 +24,13 @@ default_funcs = {'simulated': ['TPR TADs', 'TPR boundaries', 'PPV TADs', 'PPV bo
                  'convergence': ['JI TADs', 'OC TADs', 'JI boundaries', 'OC boundaries'],
                  'border_events': ['P-value']}
 
+set_scale_factors = {'armatus': {'narrow': 2, 'wide': 5, 'factor': 5},
+                     'lavaburst': {'narrow': 2, 'wide': 5, 'factor': 5},
+                     'lavaarmatus': {'narrow': 2, 'wide': 5, 'factor': 5},
+                     'lavamodularity': {'narrow': 2, 'wide': 5, 'factor': 5},
+                     'insulation': {'narrow': 2, 'wide': 5, 'factor': 5},
+                     'directionality': {'narrow': 1, 'wide': 3, 'factor': 4}}
+
 
 class Experiment(object):
 
@@ -55,12 +62,12 @@ class Experiment(object):
             self.callername = callername
 
         if scaling:
-            scale = self.caller._metadata['resolution']
+            data_scale = self.caller._metadata['resolution']
         else:
-            scale = 1
+            data_scale = 1
 
         if track_file:
-            self.track = DataClasses.load_BED(track_file, scale=scale, chrm=chr)[self.caller._metadata['chr']]
+            self.track = DataClasses.load_BED(track_file, scale=data_scale, chrm=chr)[self.caller._metadata['chr']]
         else:
             self.track = None
 
@@ -72,11 +79,13 @@ class Experiment(object):
                                'lavamodularity': pd.Series([np.arange(5, 15.5, 0.5)], index=['gamma']),
                                'insulation': pd.Series([np.arange(1, 11, 1) * self.caller._metadata['resolution'],
                                                         [0.1, 0.2, 0.5, 0.7]], index=['window', 'cutoff']),
-                               'directionality': pd.Series([np.arange(1, 11, 1) * self.caller._metadata['resolution'],
+                               'directionality': pd.Series([np.arange(1, 101, 10) * self.caller._metadata['resolution'],
                                                             [0.1, 0.2, 0.5, 0.7]], index=['window', 'cutoff']),
                                'hicseg': None,
                                'mrtadfinder': None,
                                'hicexplorer': None}
+
+        self.scale_factors = set_scale_factors[callername]
 
         self.history = {'ranges': [deepcopy(self.default_ranges[self.callername])],
                         'best_gamma': list(),
@@ -153,15 +162,15 @@ class Experiment(object):
         :param optimisation: an optimisation mode to be calculated
         :param track: a GenomicRanges instance of some genomic track to be used
         """
-
+        offset = kwargs.get('offset', 0)
         if optimisation == 'simulated':
             track = kwargs.get('track', None)
-            return list(map(np.array, (np.reshape([segmentation.count_coef(track, coef=function)
+            return list(map(np.array, (np.reshape([segmentation.count_coef(track, coef=function, offset=offset)
                                                    for segmentation in segmentation_list[0]], arr_shape)
                                        for function in ('TPR TADs', 'PPV TADs', 'TPR boundaries', 'PPV boundaries'))))
 
         elif optimisation == 'convergence':
-            return list(map(np.array, [np.reshape([segmentation_list[0][i].count_coef(segmentation_list[1][i], coef=function)
+            return list(map(np.array, [np.reshape([segmentation_list[0][i].count_coef(segmentation_list[1][i], coef=function, offset=offset)
                                                    for i in range(len(segmentation_list[0]))], arr_shape)
                                        for function in ('JI TADs', 'OC TADs', 'JI boundaries', 'OC boundaries')]))
 
@@ -216,6 +225,11 @@ class Experiment(object):
         function, background function and background method.
         """
         mode = kwargs.get('mode', 'primary')
+        scale_factors = kwargs.get('scale_factors', {'narrow': 2, 'wide': 5, 'factor': 5})
+        narrow = scale_factors['narrow']
+        wide = scale_factors['wide']
+        factor = scale_factors['factor']
+
         if mode == 'gradient-selection':
             best_func = Experiment.select_function(optimising_list)
             target_arr = optimising_list[best_func]
@@ -242,19 +256,19 @@ class Experiment(object):
                 best_gamma.append(oldrange[dim][max_loc])
                 old_step = oldrange[dim][1] - oldrange[dim][0]
                 if 0.1 >= (max_loc / target_arr.shape[dim]):
-                    left = oldrange[dim][0] - 5 * old_step
-                    right = oldrange[dim][max_loc] + 2 * old_step
+                    left = oldrange[dim][0] - wide * old_step
+                    right = oldrange[dim][max_loc] + narrow * old_step
                     step = old_step
 
                 elif (max_loc / target_arr.shape[dim]) >= 0.9:
-                    left = oldrange[dim][max_loc] - 2 * old_step
-                    right = oldrange[dim][-1] + 5 * old_step
+                    left = oldrange[dim][max_loc] - narrow * old_step
+                    right = oldrange[dim][-1] + wide * old_step
                     step = old_step
 
                 else:
-                    left = oldrange[dim][max_loc] - 2 * old_step
-                    right = oldrange[dim][max_loc] + 2 * old_step
-                    step = old_step / 5
+                    left = oldrange[dim][max_loc] - narrow * old_step
+                    right = oldrange[dim][max_loc] + narrow * old_step
+                    step = old_step / factor
 
                 range_list.append(np.arange(left, right + step, step).round(5).tolist())
             return pd.Series(data=[i for i in np.array(range_list)], index=oldrange.index), tuple(best_gamma), best_func
@@ -374,6 +388,7 @@ class Experiment(object):
         plt.subplot(2, 3, 6)
         Experiment.plot_tads(mtx_1, best_segmentation)
         plt.title('Best segmentation with gamma{}'.format(best_gamma))
+        plt.subplots_adjust(hspace=0.5, wspace=0.5)
         if filename:
             plt.savefig(filename)
 
@@ -396,7 +411,7 @@ class Experiment(object):
         """
         mode = kwargs.get('mode', 'primary')
         regime = kwargs.get('regime', 'silent')
-
+        offset = kwargs.get('offset', 0)
         background_method = kwargs.get('background_method', self.background_method)
 
         self.caller.call(self.history['ranges'][-1])
@@ -404,9 +419,10 @@ class Experiment(object):
         segmentation_sizes, arr_shape, gamma_arr = Experiment.data_generation(self.caller, self.history['ranges'][-1], 'sizes')
         background_arr = Experiment.background_calc(segmentation_sizes, arr_shape, background_method=background_method)
         segmentation_list, arr_shape, gamma_arr = Experiment.data_generation(self.caller, self.history['ranges'][-1], self.optimisation)
-        optimising_list = Experiment.optimised_calc(segmentation_list, arr_shape, self.optimisation, track=self.track, average=self.profile['midpoint'])
+        optimising_list = Experiment.optimised_calc(segmentation_list, arr_shape, self.optimisation, track=self.track, average=self.profile['midpoint'], offset=offset)
         new_range, best_gamma, best_func_id = self.make_newrange(self.history['ranges'][-1], optimising_list,
-                                                                 background_arr, self.background_method, mode=mode)
+                                                                 background_arr, self.background_method, mode=mode,
+                                                                 scale_factors=self.scale_factors)
         # assign new gammas
         self.best_gamma = best_gamma
         self.history['iteration'] += 1
@@ -464,9 +480,10 @@ class Experiment(object):
         threshold = kwargs.get('threshold', 0.01)
         iterations = kwargs.get('iterations', 5)
         plt_filename = kwargs.get('filename', 'sample.png')
+        offset = kwargs.get('offset', 0)
         while (self.history['ranges'][-1][0][1] - self.history['ranges'][-1][0][0]) > threshold and \
               (self.history['iteration'] < iterations):
-            self.call()
+            self.call(offset=offset)
             print("best gamma value is: {}".format(self.best_gamma))
             print("new range is:\n{}".format(self.history['ranges'][-1]))
 
