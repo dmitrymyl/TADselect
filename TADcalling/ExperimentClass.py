@@ -163,6 +163,7 @@ class Experiment(object):
         :param track: a GenomicRanges instance of some genomic track to be used
         """
         offset = kwargs.get('offset', 0)
+        track = kwargs.get('track', None)
         if optimisation == 'simulated':
             track = kwargs.get('track', None)
             return list(map(np.array, (np.reshape([segmentation.count_coef(track, coef=function, offset=offset)
@@ -187,7 +188,7 @@ class Experiment(object):
             raise Exception("optimisation method not understood: %s" % optimisation)
 
     @staticmethod
-    def max_coord(target_arr, background_arr, mask_list):
+    def max_coord(target_arr, background_arr, mask_list, threshold):
         """
         Find coordinates of maximum values in target_arr
         based on mask from background_arr values.
@@ -201,9 +202,13 @@ class Experiment(object):
             mask = mask[0]
         v1 = target_arr.copy()
         v1[mask] = -100
-        v1_rev = v1.flatten()[::-1]
-        v1_rev.shape = v1.shape
-        coord = len(v1_rev.flatten()) - v1_rev.argmax() - 1
+        print(sum(np.gradient(v1.flatten())), sum(v1), 0.3 * v1.flatten().shape[0], v1.shape)
+        if sum(np.gradient(v1.flatten())) < threshold and sum(v1) > 0.3 * v1.flatten().shape[0]:
+            coord = v1.flatten().shape[0] // 2
+        else:
+            v1_rev = v1.flatten()[::-1]
+            v1_rev.shape = v1.shape
+            coord = len(v1_rev.flatten()) - v1_rev.argmax() - 1
         return np.unravel_index(coord, v1.shape)
 
     @staticmethod
@@ -225,6 +230,7 @@ class Experiment(object):
         function, background function and background method.
         """
         mode = kwargs.get('mode', 'primary')
+        threshold = kwargs.get('threshold', 0.001)
         scale_factors = kwargs.get('scale_factors', {'narrow': 2, 'wide': 5, 'factor': 5})
         narrow = scale_factors['narrow']
         wide = scale_factors['wide']
@@ -247,7 +253,8 @@ class Experiment(object):
 
         elif background_method == 'size':
             range_list = list()
-            max_index = Experiment.max_coord(target_arr, background_arr, self.profile['size'])
+            print(oldrange, target_arr, background_arr)
+            max_index = Experiment.max_coord(target_arr, background_arr, self.profile['size'], threshold=threshold)
             best_gamma = list()
             if not isinstance(max_index, list) and not isinstance(max_index, tuple):
                 max_index = [max_index]
@@ -341,14 +348,17 @@ class Experiment(object):
         best_segmentation = caller._segmentations[label][best_gamma[0]].data
         plt.rcParams['figure.figsize'] = 10, 10
         plt.subplot(221)
-        plt.ylim(0, 1)
+        if 'Distance' in optimisation_data.columns.values:
+            plt.ylim(top=0)
+        else:
+            plt.ylim(0, 1.01)
         plt.plot(optimisation_data.loc[label].loc[obtained_gamma_range[0]], alpha=0.7)
         plt.legend(labels=optimisation_data.loc[label].columns)
         plt.subplot(222)
         plt.plot(background_data.loc[label].loc[obtained_gamma_range[0]])
         plt.legend(labels=background_data.loc[label].columns)
         plt.subplot(223)
-        Experiment.plot_tads(mtx_1, best_segmentation)
+        Experiment.plot_tads(mtx_1, best_segmentation, bgn=1000, end=1100)
         plt.title('Best segmentation with gamma{}'.format(best_gamma))
         if filename:
             plt.savefig(filename)
@@ -373,11 +383,17 @@ class Experiment(object):
         heatmap_source = optimisation_data.unstack(level=0).unstack(level=0).groupby('gamma2').aggregate(np.mean)
         plt.rcParams['figure.figsize'] = 15, 10
 
+        if 'Distance' in optimisation_data.columns.values:
+            vmin = None
+            vmax = 0
+        else:
+            vmin = 0
+            vmax = 1
         for i, func in zip((1, 2, 4, 5), optimisation_data.columns):
             plt.subplot(2, 3, i)
             sns.heatmap(heatmap_source[func][label].loc[obtained_gamma_range[1],
                                                         obtained_gamma_range[0]],
-                        cmap='Reds', center=0.5, vmin=0, vmax=1)
+                        cmap='Reds', center=0.5, vmin=vmin, vmax=vmax)
             plt.title(func)
 
         background_source = background_data.unstack(level=0).unstack(level=0).groupby('gamma2').aggregate(np.mean)
@@ -386,7 +402,7 @@ class Experiment(object):
                                                          obtained_gamma_range[0]], cmap='Reds')
         plt.title(background_method)
         plt.subplot(2, 3, 6)
-        Experiment.plot_tads(mtx_1, best_segmentation)
+        Experiment.plot_tads(mtx_1, best_segmentation, bgn=1000, end=1100)
         plt.title('Best segmentation with gamma{}'.format(best_gamma))
         plt.subplots_adjust(hspace=0.5, wspace=0.5)
         if filename:
@@ -479,11 +495,14 @@ class Experiment(object):
     def iterative_approach(self, **kwargs):
         threshold = kwargs.get('threshold', 0.01)
         iterations = kwargs.get('iterations', 5)
+        cutoff = kwargs.get('cutoff', 0.95)
         plt_filename = kwargs.get('filename', 'sample.png')
         offset = kwargs.get('offset', 0)
-        while (self.history['ranges'][-1][0][1] - self.history['ranges'][-1][0][0]) > threshold and \
-              (self.history['iteration'] < iterations):
+        step = self.history['ranges'][-1][0][1] - self.history['ranges'][-1][0][0]
+        best_value = -1
+        while step > threshold and self.history['iteration'] < iterations and best_value < cutoff:
             self.call(offset=offset)
+            best_value = self.optimisation_data.loc[self.caller._metadata['labels'][0]].loc[self.best_gamma][0]
             print("best gamma value is: {}".format(self.best_gamma))
             print("new range is:\n{}".format(self.history['ranges'][-1]))
 

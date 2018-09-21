@@ -33,13 +33,15 @@ class GenomicRanges(object):
             buff = buff[buff[:, 0].argsort(), :]
             if scale != 1:
                 self.data = buff / scale
-            self.data = buff
+            else:
+                self.data = buff
             self.coverage = np.full_like(self.data[:, 0], 1, dtype=int)
         elif buff.shape[1] == 3:
             buff = buff[buff[:, 0].argsort(), :]
             if scale != 1:
                 self.data = buff[:, 0:2] / scale
-            self.data = buff[:, 0:2]
+            else:
+                self.data = buff[:, 0:2]
             self.coverage = buff[:, 2]
         elif buff is None or buff.shape[1] == 0:  # No segments in a segmentation, TODO: @dmyl check
             self.data = np.zeros((1, 2))
@@ -179,8 +181,8 @@ class GenomicRanges(object):
             v1[mask_starts_1] += cutzerosvec(dists2, offset)
 
         # Finally, try to fit both starts and ends.
-        start_dist = np.array([min(v2[:, 0] - i, key=abs) for i in v1[:, 0]], dtype=int)
-        end_dist = np.array([min(v2[:, 1] - i, key=abs) for i in v1[:, 1]], dtype=int)
+        start_dist = np.array([min(v2[:, 0] - i, key=abs) for i in v1[:, 0]], dtype=float)
+        end_dist = np.array([min(v2[:, 1] - i, key=abs) for i in v1[:, 1]], dtype=float)
         mask_start = abs(start_dist) <= offset
         mask_end = abs(end_dist) <= offset
         if mask_start.any():
@@ -407,7 +409,7 @@ def load_BED(filename, scale=1, chrm=None):
     buff = np.loadtxt(filename, dtype=object, ndmin=2)
     if buff is None:
         return {"chr1": GenomicRanges(buff)}
-    elif buff.shape[1] not in (2, 3, 6):
+    elif buff.shape[1] not in (2, 3, 6) and buff.shape[1] < 6:
         raise Exception("Given file is not BED-like.")
     elif buff.shape[1] in (0, 2):
         if chrm is None:
@@ -418,5 +420,5 @@ def load_BED(filename, scale=1, chrm=None):
         indices = [np.searchsorted(buff[:, 0], chrm) for chrm in chrms]
         if buff.shape[1] == 3:
             return {chrm: GenomicRanges(arr, scale=scale) for chrm, arr in zip(chrms, np.vsplit(buff[:, 1:], indices[1:]))}
-        if buff.shape[1] == 6:
+        if buff.shape[1] >= 6:
             return {chrm: GenomicRanges(arr, scale=scale) for chrm, arr in zip(chrms, np.vsplit(buff[:, [1, 2, 4]], indices[1:]))}
