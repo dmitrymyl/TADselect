@@ -476,10 +476,10 @@ class DirectionalityCaller(BaseCaller):
         tads = tadtool.tad.call_tads_directionality_index(ii, cutoff, regions=regions)
         segments = np.array([[some_tad.start - 1, some_tad.end] for some_tad in tads], dtype=int)
 
-        v = segments[:, 1] - segments[:, 0]
-        mask = (v > max_intertad_size) & (np.isfinite(v)) & (v < max_tad_size)
-
-        segments = segments[mask]
+        if len(segments) > 0:
+            v = segments[:, 1] - segments[:, 0]
+            mask = (v > max_intertad_size) & (np.isfinite(v)) & (v < max_tad_size)
+            segments = segments[mask]
 
         return GenomicRanges(np.array(segments, dtype=int), data_type='segmentation')
 
