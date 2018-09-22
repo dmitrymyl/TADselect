@@ -201,11 +201,11 @@ class Experiment(object):
         else:
             mask = mask[0]
         v1 = target_arr.copy()
-        v1[mask] = -100
         print(sum(np.gradient(v1.flatten())), sum(v1), 0.3 * v1.flatten().shape[0], v1.shape)
         if sum(np.gradient(v1.flatten())) < threshold and sum(v1) > 0.3 * v1.flatten().shape[0]:
             coord = v1.flatten().shape[0] // 2
         else:
+            v1[mask] = -1000
             v1_rev = v1.flatten()[::-1]
             v1_rev.shape = v1.shape
             coord = len(v1_rev.flatten()) - v1_rev.argmax() - 1

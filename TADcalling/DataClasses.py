@@ -158,8 +158,8 @@ class GenomicRanges(object):
         if not arr1.shape[0] * arr2.shape[0]:
             return arr1, arr2
 
-        v1 = arr1.copy()
-        v2 = arr2.copy()
+        v1 = np.array(arr1.copy(), dtype=float)
+        v2 = np.array(arr2.copy(), dtype=float)
 
         def cutzeros(i, offset):
             return i if abs(i) <= offset else 0
