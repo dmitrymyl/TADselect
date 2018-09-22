@@ -357,14 +357,14 @@ class Experiment(object):
         plt.rcParams['figure.figsize'] = 10, 10
         plt.subplot(221)
         if 'Distance' not in optimisation_data.columns.values:
-            plt.ylim(0, 1.01)            
+            plt.ylim(0, 1.01)
         plt.plot(optimisation_data.loc[label].loc[obtained_gamma_range[0]], alpha=0.7)
         plt.legend(labels=optimisation_data.loc[label].columns)
         plt.subplot(222)
         plt.plot(background_data.loc[label].loc[obtained_gamma_range[0]])
         plt.legend(labels=background_data.loc[label].columns)
         plt.subplot(223)
-        Experiment.plot_tads(mtx_1, best_segmentation, bgn=1000, end=1100)
+        Experiment.plot_tads(mtx_1, best_segmentation, bgn=1000, end=1500)
         plt.title('Best segmentation with gamma{}'.format(best_gamma))
         if filename:
             plt.savefig(filename)
@@ -408,7 +408,7 @@ class Experiment(object):
                                                          obtained_gamma_range[0]], cmap='Reds')
         plt.title(background_method)
         plt.subplot(2, 3, 6)
-        Experiment.plot_tads(mtx_1, best_segmentation, bgn=1000, end=1100)
+        Experiment.plot_tads(mtx_1, best_segmentation, bgn=1000, end=1500)
         plt.title('Best segmentation with gamma{}'.format(best_gamma))
         plt.subplots_adjust(hspace=0.5, wspace=0.5)
         if filename:
