@@ -183,7 +183,7 @@ class Experiment(object):
                 if dists:
                     distances.append(dists)
                 else:
-                    distances.append(np.INF)
+                    distances.append(np.inf)
             #distances = [segmentation.dist_closest(track, mode='bin-boundariwise').flatten()
             #             for segmentation in segmentation_list[0]]
             return [np.array([-np.mean(np.abs(i)) for i in distances])]
