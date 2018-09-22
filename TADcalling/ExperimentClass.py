@@ -39,6 +39,7 @@ class Experiment(object):
         mode = kwargs.get('mode', 'iterative')
         background_method = kwargs.get('background_method', 'size')
         optimisation = kwargs.get('optimisation', 'convergence')
+        resolution = kwargs.get('resolution', 1)
 
         if mode not in ('iterative', 'user'):
             raise Exception("Mode not understood: %s" % mode)
@@ -176,8 +177,15 @@ class Experiment(object):
                                        for function in ('JI TADs', 'OC TADs', 'JI boundaries', 'OC boundaries')]))
 
         elif optimisation == 'border_events':
-            distances = [segmentation.dist_closest(track, mode='bin-boundariwise').flatten()
-                         for segmentation in segmentation_list[0]]
+            distances = list()
+            for segmentation in segmentation_list[0]:
+                dists = segmentation.dist_closest(track, mode='bin-boundariwise')
+                if dists:
+                    distances.append(dists)
+                else:
+                    distances.append(np.INF)
+            #distances = [segmentation.dist_closest(track, mode='bin-boundariwise').flatten()
+            #             for segmentation in segmentation_list[0]]
             return [np.array([-np.mean(np.abs(i)) for i in distances])]
 
         elif optimisation == 'fitting-average':
@@ -205,7 +213,7 @@ class Experiment(object):
         if np.abs(np.sum(np.gradient(v1.flatten()))) < threshold and np.sum(v1) > 0.9 * v1.flatten().shape[0]:
             coord = v1.flatten().shape[0] // 2
         else:
-            v1[mask] = -1000
+            v1[mask] = np.NINF
             v1_rev = v1.flatten()[::-1]
             v1_rev.shape = v1.shape
             coord = len(v1_rev.flatten()) - v1_rev.argmax() - 1
