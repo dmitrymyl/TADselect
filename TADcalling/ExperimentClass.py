@@ -180,7 +180,7 @@ class Experiment(object):
             distances = list()
             for segmentation in segmentation_list[0]:
                 dists = segmentation.dist_closest(track, mode='bin-boundariwise')
-                if dists:
+                if dists is not None:
                     distances.append(dists)
                 else:
                     distances.append(np.inf)
