@@ -143,12 +143,13 @@ class BaseCaller(object):
 
         for f in self._metadata[file_holder]:
 
-            mtxObj = InteractionMatrix(f, original_format, read=False)
+            mtxObj = InteractionMatrix(f, original_format, ch=self._metadata['chr'])
 
             output_fname = mtxObj.convert(input_filename=f,
                                           output_filename="{}.{}".format(f, data_format),
                                           input_format=original_format,
-                                          output_format=data_format, **param_dict)
+                                          output_format=data_format,
+                                          chr=self._metadata['chr'], **param_dict)
             resulting_files.append(output_fname)
 
         self._metadata['files_{}'.format(data_format)] = resulting_files

@@ -348,10 +348,8 @@ class Experiment(object):
         best_segmentation = caller._segmentations[label][best_gamma[0]].data
         plt.rcParams['figure.figsize'] = 10, 10
         plt.subplot(221)
-        if 'Distance' in optimisation_data.columns.values:
-            plt.ylim(top=0)
-        else:
-            plt.ylim(0, 1.01)
+        if 'Distance' not in optimisation_data.columns.values:
+            plt.ylim(0, 1.01)            
         plt.plot(optimisation_data.loc[label].loc[obtained_gamma_range[0]], alpha=0.7)
         plt.legend(labels=optimisation_data.loc[label].columns)
         plt.subplot(222)
@@ -526,7 +524,7 @@ class Experiment(object):
 
 class ExperimentNoGamma(object):
 
-    def __init__(self, datasets_labels, datasets_files, data_format, callername, key=None, track_file=None, scaling=False, **kwargs):
+    def __init__(self, datasets_labels, datasets_files, data_format, chr, callername, key=None, track_file=None, scaling=False, **kwargs):
 
         mode = kwargs.get('mode', 'iterative')
         background_method = kwargs.get('background_method', 'size')
@@ -549,9 +547,9 @@ class ExperimentNoGamma(object):
             self.optimisation = optimisation
 
         if callername not in caller_dict.keys():
-            raise Exception("Caller not understood: %s" % caller)
+            raise Exception("Caller not understood: %s" % callername)
         else:
-            self.caller = caller_dict[callername](datasets_labels, datasets_files, data_format, **kwargs)
+            self.caller = caller_dict[callername](datasets_labels, datasets_files, data_format, chr=chr, **kwargs)
             self.callername = callername
 
         if scaling:
