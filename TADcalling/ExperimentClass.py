@@ -181,12 +181,12 @@ class Experiment(object):
             for segmentation in segmentation_list[0]:
                 dists = segmentation.dist_closest(track, mode='bin-boundariwise')
                 if dists is not None:
-                    distances.append(dists)
+                    distances.append(dists.flatten())
                 else:
                     distances.append(np.inf)
             #distances = [segmentation.dist_closest(track, mode='bin-boundariwise').flatten()
             #             for segmentation in segmentation_list[0]]
-            return [np.array([-np.mean(np.abs(i)) for i in distances])]
+            return [np.reshape([-np.mean(np.abs(i)) for i in distances], arr_shape)]
 
         elif optimisation == 'fitting-average':
             midpoint = kwargs.get('average', 100)
@@ -202,15 +202,17 @@ class Experiment(object):
         based on mask from background_arr values.
         """
         if target_arr.shape[0] != background_arr.shape[1]:
-            raise Exception("Shapes of target and background arrays are inconsistent: {} vs {}".format(target_arr.shape, background_arr.shape))
+            if np.prod(target_arr.shape) != np.prod(background_arr.shape):
+                raise Exception("Shapes of target and background arrays are inconsistent: {} vs {}".format(target_arr.shape, background_arr.shape))
         mask = (background_arr <= mask_list[0]) | (background_arr >= mask_list[1])
         if len(background_arr.shape) > 1 and background_arr.shape[0] > 1:
             mask = np.multiply(*mask)
         else:
             mask = mask[0]
+        mask.shape = target_arr.shape
         v1 = target_arr.copy()
         print(np.sum(np.gradient(v1.flatten())), np.sum(v1), 0.9 * v1.flatten().shape[0], v1.shape)
-        if np.abs(np.sum(np.gradient(v1.flatten()))) < threshold and np.sum(v1) > 0.9 * v1.flatten().shape[0]:
+        if not mask.all() and np.abs(np.sum(np.gradient(v1.flatten()))) < threshold and np.sum(v1) > 0.9 * v1.flatten().shape[0]:
             coord = v1.flatten().shape[0] // 2
         else:
             v1[mask] = np.NINF
