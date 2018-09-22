@@ -201,8 +201,8 @@ class Experiment(object):
         else:
             mask = mask[0]
         v1 = target_arr.copy()
-        print(sum(np.gradient(v1.flatten())), sum(v1), 0.3 * v1.flatten().shape[0], v1.shape)
-        if sum(np.gradient(v1.flatten())) < threshold and sum(v1) > 0.3 * v1.flatten().shape[0]:
+        print(np.sum(np.gradient(v1.flatten())), np.sum(v1), 0.3 * v1.flatten().shape[0], v1.shape)
+        if np.sum(np.gradient(v1.flatten())) < threshold and np.sum(v1) > 0.3 * v1.flatten().shape[0]:
             coord = v1.flatten().shape[0] // 2
         else:
             v1[mask] = -1000
