@@ -90,7 +90,7 @@ class Experiment(object):
                                'hicexplorer': pd.Series([np.arange(2, 8, 1) * self.caller._metadata['resolution'],
                                                          np.arange(4, 10, 1) * self.caller._metadata['resolution']],
                                                         index=['minDepth', 'maxDepth']),
-                               'arrowhead': pd.Series([np.arange(0, 0.5, 0.05) * self.Caller._metadata['resolution']],
+                               'arrowhead': pd.Series([np.arange(0, 0.5, 0.05) * self.caller._metadata['resolution']],
                                                       index=['windowSize']),
                                'tadbit': None,  # NoGamma
                                'tadtree': None}  # do not use it because of its slowness
