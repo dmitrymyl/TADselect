@@ -18,7 +18,10 @@ caller_dict = {'armatus': CallerClasses.ArmatusCaller,
                'hicseg_g': CallerClasses.HiCsegGCaller,
                'hicseg_b': CallerClasses.HiCsegBCaller,
                'mrtadfinder': CallerClasses.MrTADFinderCaller,
-               'hicexplorer': CallerClasses.HiCExplorerCaller}
+               'hicexplorer': CallerClasses.HiCExplorerCaller,
+               'tadbit': CallerClasses.TADbitCaller,
+               'tadtree': CallerClasses.TADtreeCaller,
+               'arrowhead': CallerClasses.ArrowheadCaller}
 
 default_funcs = {'simulated': ['TPR TADs', 'TPR boundaries', 'PPV TADs', 'PPV boundaries'],
                  'convergence': ['JI TADs', 'OC TADs', 'JI boundaries', 'OC boundaries'],
@@ -82,9 +85,15 @@ class Experiment(object):
                                                         [0.1, 0.2, 0.5, 0.7]], index=['window', 'cutoff']),
                                'directionality': pd.Series([np.arange(1, 101, 10) * self.caller._metadata['resolution'],
                                                             [0.1, 0.2, 0.5, 0.7]], index=['window', 'cutoff']),
-                               'hicseg': None,
-                               'mrtadfinder': None,
-                               'hicexplorer': None}
+                               'hicseg': None,  # NoGamma
+                               'mrtadfinder': None,  # somewhat incorrect
+                               'hicexplorer': pd.Series([np.arange(2, 8, 1) * self.caller._metadata['resolution'],
+                                                         np.arange(4, 10, 1) * self.caller._metadata['resolution']],
+                                                        index=['minDepth', 'maxDepth']),
+                               'arrowhead': pd.Series([np.arange(0, 0.5, 0.05) * self.Caller._metadata['resolution']],
+                                                      index=['windowSize']),
+                               'tadbit': None,  # NoGamma
+                               'tadtree': None}  # do not use it because of its slowness
 
         self.scale_factors = set_scale_factors[callername]
 

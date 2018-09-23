@@ -600,9 +600,9 @@ class ArrowheadCaller(BaseCaller):
 
                 outmask = "tmp/{}.arrowhead.{}.tmp".format(label, windowSize)
                 segmentation = self._call_single(f,
-                                             outmask,
-                                             windowSize,
-                                             **kwargs)
+                                                 outmask,
+                                                 windowSize,
+                                                 **kwargs)
 
                 output_dct[label] = deepcopy(segmentation)
 
