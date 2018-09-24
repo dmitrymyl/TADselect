@@ -4,13 +4,18 @@ Here we introduce a library for testing various TAD callers. The tool is capable
 ## Installation
 ### Ordinary mode:
 ```bash
-git clone https://github.com/dmitrymyl/TADreproduce.git
-cd TADreproduce/TADcalling
+git clone https://github.com/dmitrymyl/TADselect.git
+cd TADselect
 pip install ./
 ```
 ### Developer mode for pip:
 ```bash
 pip install -e ./
+```
+### Conda developer mode:
+```
+cd TADselect
+conda develop ./
 ```
 ## Currently implemented TAD callers
 * Armatus standalone
