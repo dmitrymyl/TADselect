@@ -1,68 +1,61 @@
-# TADreproduce
-Воспроизводим https://bitbucket.org/mforcato/hictoolscompare/src
+# TADcalling
+Here we introduce a library for testing various TAD callers. The tool is capable of selecting the best parameter for certain TAD callers, plotting necessary data and benchmarking.
 
-## Мысли
-Хочу меру схожести границ ТАДов, чтобы сравнить результаты программ с симулированными данными. Так, для каждой гаммы будет набор JI по всем симуляциям, надо строить распределение (либо бокс-плоты, если гамм мало - для арматуса, либо брать среднее/медиану и строить линию, если гамм много - modulation_score в lavaburst). Так сможем сравнивать границы ТАДов с идеальными из симуляций и между собой. Тогда надо написать функцию, которая умеет считать JI и OC для двух наборов границ ТАДов (двумерных массивов np.array)
+## Installation
+### Ordinary mode:
+```bash
+git clone https://github.com/dmitrymyl/TADreproduce.git
+cd TADreproduce/TADcalling
+pip install ./
+```
+### Developer mode for pip:
+```bash
+pip install -e ./
+```
+## Currently implemented TAD callers
+* Armatus standalone
+* Lavaburst package:
+    * Armatus
+    * Modularity
+* TADtools package:
+    * Insulation score
+    * Directionality index
+* HiCExplorer
+* HiCseg
+* Arrowhead
+* TADtree
+* TADbit
 
-Мера схожести границ ТАДов - JI и OC. Функции есть в файле HiCToolsCompare / TADs / 00_utils_tads.r, надо перевести в питон.
+## Strategies for parameter selection
+Several TAD callers require selection of master parameter (so called 'gamma'), which affects resulting segmentation. We propose a number of strategies for picking out the most adequate parameter.
 
-compare_tads_with_string_approach - непонятно, что делает.
-calculate_concordance - считает JI и OC, пишет в файл.
+### Converegence between technical replica
+Two Hi-C matrices derived from the same chromosome of the same cell line but from different replica are supposed to have identical TAD segmentations. The optimisation of parameter is based on maximisation of Jaccard index (JI) between segmentations taken from two technical replicates with the same master parameter.
 
-Анализ симуляций в файле HiCToolsCompare / Simulations / Analyze_simulations_TADs.R Там сравнивают обнаруженные ТАДы и границы ТАДов обычным in. Функция np.isin(array1, array2) возвращает логический массив, который можно инвертировать с помощью ~.
+### Colocalisation with genome features
+TAD borders were shown to colocalise with CTCF peaks in Human and histone mark transitions in Drosophila. The module in specific regime is able to approximate TAD segmentation to given genomic track by minimising average distance between TAD borders and closest genomic features.
 
-## Имеем следующие объекты:
-- Сколько-то методов (данные по x)
-- Управляющий параметр метода (данные по x)
-- 25 различных симуляций (данные по x, генерация выборки)
-- Шум в матрице контактов (данные по x)
-- Границы получающихся ТАДов (сырые результаты, генерация выборки)
-- Размер ТАДов (данные по y)
-- Число ТАДов (данные по y)
-- JI и OC (данные по y)
-- TPR и FDR (данные по y)
+### Recovery of simulated segmentation
+It is substantial to test TAD callers on simulated data. The master parameter is selected by maximisation of TPR and PPV of given TAD segmentation.
 
-## Задача для симулированных данных
-Надо повторить suppl fig 13, добавить подбор управляющего параметра. Найти лучшую гамму в зависимости от FDR, TPR, ROC-curve, для каждого метода в зависимости от шума и для каждой симуляции.
+### Background function
+Even if listed above strategies perform well, the callers might reproduce inadequate segmentations with few huge or many small TADs. To control this effect the background function was introduced. It takes the assumption that the most informative segmentation for each given Hi-C matrix tells mean size of TADs between 2 and 1000 bins regardless its resolution.
 
-## Работа с симуляцией:
-- Получить ТАДы для нескольких значений управляющего параметра. Сделать так для нескольких методов для каждой симуляции. Перевести все файлы в один формат (два столбца - начало и конец тадов). Сохранить информацию о шуме, о симуляции, методе и управляющем параметре в названии файла. Формат: метод_гамма_шум_номер.txt
-- ROC-curve для каждого метода в зависимости от гаммы, найти лучшую гамму исходя из этой кривой. Сделать для разных значений шума и для всех симуляций в совокупности. Мб построить в 3D такой график. Сделать как для самих ТАДов, так и для их границ. (наша новинка)
-- Посмотреть на число тадов в зависимости от шума для каждого метода для лучшей гаммы и для всех гамм.
-- Размер тадов для каждого метода в репликах, учитывать шум. Для лучшей гаммы и для всех гамм.
-- TPR, FDR в зависимости от шума для каждого метода c наилучшей гаммой (это наша новинка)
+## Input data
 
-## Методы
-### Умеем делать
-- Armatus, гамма от 0 до 5 с шагом в 0.5, работает медленно, надо на кластере
-- lavaburst: armatus_score (от 0 до 5 с шагом в 0.5), modularity_score (от 0 до 100 с шагом в 1), potts_score (), variance_score (). Можно сделать у себя на компе, работает довольно быстро.
-- HiCseg, nb_change_max - наибольшее число точек смены (число ТАДов - 1?). Работает медленно, жрёт много памяти, надо на кластере. Судя по всему, не имеет управляющего параметра.
+## Description of available classes
 
-### Что ещё предлагают
-- Arrowhead - написан на java, есть ли управляющий параметр? Конвертация результатов, по-видимому, не нужна. Делает из формата .hic, который получается из ридов. Нам не подходит.
-- domainCaller - странная штука, неохота разбираться.
-- TADtree - слишком сложно, много параметров и какая-то непонятная конверсия результатов.
-- insulationScore - на перле, просто, надо сделать. ! Не заводится, медленный.
-- Tadtool - на него подаётся матрица и файл с координатами бинов. Имеет insulation score, directionality index. https://github.com/vaquerizaslab/tadtool
+### GenomicRanges
+The class to store genomic ranges with coverage. The input is available from numpy 2D-array or from .bed file via load_BED() function. The class implements bedtools-like methods: finding closest features in other track for given track, counting distances to them; finding intersecting ranges, counting shared ranges with given offset; calculating JI, OC, TPR, FDR, PPV for ranges themselves and their boundaries.
 
-- TADbit - выглядит несложно, управляющий параметр? На самом деле, много всего, сложно освоить.
-- HiCExplorer - новый метод, нет в статье, выглядит безобидно, но использует какой-то свой формат матрицы контактов, надо конвертировать. В качестве входного формата принимает npz - он получается при сохранении np.array с помощью np.savez. Возможно, dekker - это подходящий формат. По ссылке как превратить обычную матрицу ndarray в npz: https://github.com/deeptools/HiCExplorer/issues/50
+### CallerClasses
+Main subset of classes containing python interface to implemented TAD callers. Typical CallerClasses class contain two methods: call() and \_call_single(). The first method takes range of parameter values for TAD calling, the second perfoms a single TAD calling event. The obtained segmentation is returned as GenomicRanges instance with coverage 1. Segmentations are stored in dictionaries with parameter values as keys for each label key. A caller class also contain \_benchmark_list and \_benchmark_df collections for ctime, utime, walltime and RAM memory spent on each \_call_single() event.
 
-Уже есть armatus и несколько из lavaburst, пока стоит в очереди HiCseg. Надо сделать tadtool, HiCExplorer, Arrowhead, TADbit, DomainCaller, TADtree в порядке снижения приоритета и повышения сложности.
-UPD: tadtool сделан, остальные либо сложные для разбора, либо не принимают в себя квадратные матрицы.
+### InteractionMatrix
+This class is an interface to a Hi-C matrix. The main used format is .cool; .txt, .txt.gz, numpy matrix are also available as well as cross-convertation. The class also implements several common transformations for Hi-C matrices.
 
-## Подбор gamma
-### lavaburst
-- armatus = 0
-![](https://github.com/dmitrymyl/TADreproduce/blob/master/sim_TADs/lava_armatus.png)
-- modularity = 15-16
-![](https://github.com/dmitrymyl/TADreproduce/blob/master/sim_TADs/modularity.png)
-- potts = 16
-![](https://github.com/dmitrymyl/TADreproduce/blob/master/sim_TADs/potts.png)
-- variance = no
-![](https://github.com/dmitrymyl/TADreproduce/blob/master/sim_TADs/variance_1.png)
-- corner = 2
-![](https://github.com/dmitrymyl/TADreproduce/blob/master/sim_TADs/corner.png)
+### Experiment
+The class is a central hub for all other classes that performs parameter selection based on listed above strategies with iterative approach. The method converges when the step of newly produced parameter range is lower than given number of given number of iterations has been surpassed.
 
-Ещё надо посмотреть, как меняется TPR и FDR для каждой гаммы при усилении шума и что с этим делать.
-Размер ТАДов и их количество в зависимости от TPR и FDR, в зависимости от гаммы.
+## Examples and explanations
+See relative jupyter notebook for usage examples and technical details.
