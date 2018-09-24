@@ -1,4 +1,4 @@
-# TADcalling
+# TADselect
 Here we introduce a library for testing various TAD callers. The tool is capable of selecting the best parameter for certain TAD callers, plotting necessary data and benchmarking.
 
 ## Installation
