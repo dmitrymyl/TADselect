@@ -6,7 +6,7 @@ Classes for TAD calling for various tools
 
 # Universal imports
 from .utils import *
-from .logger import TADcalling_logger # as logger
+from .logger import TADselect_logger # as logger
 from .DataClasses import GenomicRanges, load_BED
 from .InteractionMatrix import InteractionMatrix
 from copy import deepcopy
@@ -75,7 +75,7 @@ class BaseCaller(object):
             self._segmentations -- dictionary with segmentations for all the files
         """
 
-        TADcalling_logger.debug("Initializing from files: %s", str(datasets_files))
+        TADselect_logger.debug("Initializing from files: %s", str(datasets_files))
 
         assert len(datasets_labels) == len(datasets_files)
 
@@ -174,7 +174,7 @@ class BaseCaller(object):
         :param params: set of calling parameters
         :return: dict (ordered by metadata['labels']) with segmentations (2d np.ndarray) or names of files
         """
-        TADcalling_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params)))
+        TADselect_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params)))
         segmentations = {x: GenomicRanges(np.empty([0, 0], dtype=int), data_type="segmentation")
                          for x in self._metadata['labels']}
         self._load_segmentations(segmentations, params)
@@ -244,7 +244,7 @@ class LavaburstCaller(BaseCaller):
         :return:
         """
 
-        TADcalling_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_data)))
+        TADselect_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_data)))
 
         params_dict = dict()
         params_dict['gamma'] = params_data.get('gamma', np.arange(0, 10, 1))
@@ -286,11 +286,11 @@ class LavaburstCaller(BaseCaller):
 
         # TODO @agal move this step to one level up
         if np.any(np.isnan(mtx)):
-            TADcalling_logger.warning("NaNs in dataset, please remove them first.")
+            TADselect_logger.warning("NaNs in dataset, please remove them first.")
 
         # TODO @agal move this step to one level up
         if np.diagonal(mtx).sum() > 0:
-            TADcalling_logger.warning(
+            TADselect_logger.warning(
                 "Note that diagonal is not removed. you might want to delete it to avoid noisy and not stable results. ")
 
         if method == 'modularity':
@@ -335,7 +335,7 @@ class ArmatusCaller(BaseCaller):
 
     def call(self, params_dict={}, **kwargs):
 
-        TADcalling_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
+        TADselect_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
 
         params_dict['gamma'] = params_dict.get('gamma', np.arange(0, 10, 1))
 
@@ -374,7 +374,7 @@ class InsulationCaller(BaseCaller):
 
     def call(self, params_dict={}, **kwargs):
 
-        TADcalling_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
+        TADselect_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
 
         params_dict['window'] = params_dict.get('window', [1])
         params_dict['cutoff'] = params_dict.get('cutoff', [0])
@@ -412,10 +412,10 @@ class InsulationCaller(BaseCaller):
         """
 
         if np.any(np.isnan(mtx)):
-            TADcalling_logger.warning("NaNs in dataset, pease remove them first.")
+            TADselect_logger.warning("NaNs in dataset, pease remove them first.")
 
         if np.diagonal(mtx).sum() > 0:
-            TADcalling_logger.warning(
+            TADselect_logger.warning(
                 "Note that diagonal is not removed. You might want to delete it to avoid noisy and not stable results.")
 
         regions = [tadtool.tad.GenomicRegion(chromosome='', start=i, end=i) for i in range(mtx.shape[0])]
@@ -441,7 +441,7 @@ class DirectionalityCaller(BaseCaller):
 
     def call(self, params_dict={}, **kwargs):
 
-        TADcalling_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
+        TADselect_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
 
         params_dict['window'] = params_dict.get('window', [1])
         params_dict['cutoff'] = params_dict.get('cutoff', [0])
@@ -465,10 +465,10 @@ class DirectionalityCaller(BaseCaller):
     def _call_single(self, mtx, window, cutoff, max_intertad_size=3, max_tad_size=10000, **kwargs):
 
         if np.any(np.isnan(mtx)):
-            TADcalling_logger.warning("NaNs in dataset, pease remove them first.")
+            TADselect_logger.warning("NaNs in dataset, pease remove them first.")
 
         if np.diagonal(mtx).sum() > 0:
-            TADcalling_logger.warning(
+            TADselect_logger.warning(
                 "Note that diagonal is not removed. You might want to delete it to avoid noisy and not stable results.")
 
         regions = [tadtool.tad.GenomicRegion(chromosome='', start=i, end=i) for i in range(mtx.shape[0])]
@@ -494,7 +494,7 @@ class HiCsegCaller(BaseCaller):
 
     def call(self, params_dict={}, **kwargs):
 
-        TADcalling_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
+        TADselect_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
 
         params_dict['distr_model'] = params_dict.get('distr_model', [self._metadata['distr_model']])
 
@@ -536,7 +536,7 @@ class MrTADFinderCaller(BaseCaller):
 
     def call(self, **kwargs):
 
-        TADcalling_logger.debug("Calling %s" % (self.__class__.__name__))
+        TADselect_logger.debug("Calling %s" % (self.__class__.__name__))
 
         caller_path = kwargs.get('caller_path', '../MrTADFinder/run_MrTADFinder.jl')
         output_dct = {}
@@ -852,11 +852,11 @@ class TADbitCaller(BaseCaller):
     def _call_single(self, infile, outfile,
                      label='tmp',
                      nth=1,
-                     caller_path="../TADcalling/script_TADbit.py",
+                     caller_path="../TADselect/script_TADbit.py",
                      python_path='~/anaconda3/envs/tadbit/bin/python',
                      **kwargs):
 
-#~/anaconda3/envs/tadbit/bin/python ../TADcalling/script_TADbit.py ../data/test_S2.20000.chr2L.txt tmp/tadbit_output.txt S2 chr2L 20000 8
+#~/anaconda3/envs/tadbit/bin/python ../TADselect/script_TADbit.py ../data/test_S2.20000.chr2L.txt tmp/tadbit_output.txt S2 chr2L 20000 8
 
         command = "{python} {caller_path} {infile} {outfile} {exp} {ch} {resolution} {nth} &>/dev/null".format(
             python=python_path,

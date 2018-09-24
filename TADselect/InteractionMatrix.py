@@ -1,7 +1,7 @@
 
 # Universal imports
 from .utils import *
-from .logger import TADcalling_logger
+from .logger import TADselect_logger
 from .DataClasses import GenomicRanges, load_BED
 from copy import deepcopy
 from functools import partial
@@ -86,7 +86,7 @@ class InteractionMatrix(object):
             self._size = self._mtx.shape[0]
 
         else:
-            TADcalling_logger.warning("Input type {} currently not implemented. Skipping reading.".format(input_type))
+            TADselect_logger.warning("Input type {} currently not implemented. Skipping reading.".format(input_type))
 
     def _read_mtx(self, input_cooler, file_format, ch='chr2L', balance=True):
         self._mtx = cooler.Cooler(input_cooler).matrix(balance=balance, as_pixels=False).fetch(ch)
@@ -126,7 +126,7 @@ class InteractionMatrix(object):
         if output_format is None:
             output_format = output_filename.split('.')
 
-        TADcalling_logger.info("Converting %s -> %s: from %s to %s",
+        TADselect_logger.info("Converting %s -> %s: from %s to %s",
                                input_format, output_format, input_filename, output_filename)
 
         chromosome = kwargs.get('chr', 'chr2L')
@@ -287,7 +287,7 @@ class InteractionMatrix(object):
         :return: transformed matrix
         """
 
-        TADcalling_logger.info("Log-transform of input mtx, base: %d", base)
+        TADselect_logger.info("Log-transform of input mtx, base: %d", base)
         mtx = np.log(self._mtx) / np.log(base)
 
         return mtx, 'log({})'.format(base), self._nmods + 1
@@ -295,7 +295,7 @@ class InteractionMatrix(object):
     @lazyProcessing
     def subtract_min(self, **kwargs):
 
-        TADcalling_logger.info("Subtracting minimum from mtx")
+        TADselect_logger.info("Subtracting minimum from mtx")
 
         min_value = np.nanmin(self._mtx)
         mtx = self._mtx - min_value
@@ -317,7 +317,7 @@ class InteractionMatrix(object):
         mn = np.nanpercentile(mtx[mtx > 0], min_percentile)
         mx = np.nanpercentile(mtx[mtx > 0], max_percentile)
 
-        TADcalling_logger.info("Percentile filtering of input mtx, min percentile: %f (%.3f), max percentile: %f (%.3f)",
+        TADselect_logger.info("Percentile filtering of input mtx, min percentile: %f (%.3f), max percentile: %f (%.3f)",
                                min_percentile, mn, max_percentile, mx)
 
         mtx[mtx <= mn] = mn
@@ -336,7 +336,7 @@ class InteractionMatrix(object):
         :return:
         """
 
-        TADcalling_logger.info("Removing %d first diagonals", ndiag)
+        TADselect_logger.info("Removing %d first diagonals", ndiag)
 
         mtx = self._mtx.copy()
         length = len(mtx)
@@ -355,7 +355,7 @@ class InteractionMatrix(object):
 
         :return:
         """
-        TADcalling_logger.info("Converting matrix to integer")
+        TADselect_logger.info("Converting matrix to integer")
 
         mtx = self._mtx.copy()
 
@@ -375,7 +375,7 @@ class InteractionMatrix(object):
         :return:
         """
 
-        TADcalling_logger.info("NaNs filling with %.2f", value)
+        TADselect_logger.info("NaNs filling with %.2f", value)
 
         mtx = self._mtx.copy()
         mtx[np.isnan(mtx)] = value
@@ -420,11 +420,11 @@ class InteractionMatrix(object):
             if bins == 'zeros':
                 idx = np.sum(mtx, axis=1) == 0
             else:
-                TADcalling_logger.error("Fill bins mode {} not implemented yet".format(bins))
+                TADselect_logger.error("Fill bins mode {} not implemented yet".format(bins))
         elif type(bins) == np.ndarray:
             idx = bins
         else:
-            TADcalling_logger.error("bins type not recognised: {}".format(type(bins)))
+            TADselect_logger.error("bins type not recognised: {}".format(type(bins)))
 
         mtx[idx, :] = value
         mtx[:, idx] = value
@@ -450,11 +450,11 @@ class InteractionMatrix(object):
             if mask == 'non-positive':
                 mask = mtx <= 0
             else:
-                TADcalling_logger.error("Fill mask mode {} not implemented yet".format(mask))
+                TADselect_logger.error("Fill mask mode {} not implemented yet".format(mask))
         elif type(mask) == np.ndarray:
             pass
         else:
-            TADcalling_logger.error("mask type not recognised: {}".format(type(mask)))
+            TADselect_logger.error("mask type not recognised: {}".format(type(mask)))
 
         mtx[mask] = value
 

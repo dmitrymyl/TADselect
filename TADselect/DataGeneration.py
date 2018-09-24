@@ -1,6 +1,6 @@
 from os import stat as file_stat
 from .utils import *
-from .logger import TADcalling_logger
+from .logger import TADselect_logger
 from .InteractionMatrix import *
 from .DataClasses import GenomicRanges
 import numpy as np

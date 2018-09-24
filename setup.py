@@ -26,7 +26,7 @@ def _read(*parts, **kwargs):
 def get_version():
     version = re.search(
         r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]',
-        _read('TADcalling', '__init__.py'),
+        _read('TADselect', '__init__.py'),
         re.MULTILINE).group(1)
     return version
 
@@ -41,14 +41,14 @@ requirements = [
                 ]
 
 setup(
-    name='TADcalling',
+    name='TADselect',
     version=get_version(),
     description="Python library to run TAD callers",
     long_description=get_long_description(),
     keywords=['genomics', 'bioinformatics', 'Hi-C', 'TAD'],
     author="Dmitry Mylarcshikov & Aleksandra Galitsyna",
     author_email='agalitzina@gmail.com',
-    url='https://github.com/agalitsyna/TADcalling',
+    url='https://github.com/agalitsyna/TADselect',
 
     license="BSD",
     include_package_data=True,
@@ -58,8 +58,8 @@ setup(
 
     test_suite='tests',
 
-    packages=['TADcalling'],
-    package_dir={'TADcalling': 'TADcalling'},
+    packages=['TADselect'],
+    package_dir={'TADselect': 'TADselect'},
 
     classifiers=[s.strip() for s in classifiers.split('\n') if s],
 )

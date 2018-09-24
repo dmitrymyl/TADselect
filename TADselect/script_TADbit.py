@@ -4,7 +4,7 @@ python2 script_TADbit.py infile.txt outfile.txt S2 chr2L 20000 8
 
 From examples folder:
 
-~/anaconda3/envs/tadbit/bin/python ../TADcalling/script_TADbit.py ../data/test_S2.20000.chr2L.txt tmp/tadbit_output.txt S2 chr2L 20000 8
+~/anaconda3/envs/tadbit/bin/python ../TADselect/script_TADbit.py ../data/test_S2.20000.chr2L.txt tmp/tadbit_output.txt S2 chr2L 20000 8
 """
 
 
