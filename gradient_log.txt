@@ -1,6 +1,0 @@
-labels	mode	caller success	array
-1	sim	armat	y	?
-1	sim	insul	n	1
-2	sim	insul	y	2
-2	conv	modul	n	1
-2	sim	modul	y	2
