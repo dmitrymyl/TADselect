@@ -410,10 +410,10 @@ class GenomicRanges(object):
             dots = np.array(['.' for _ in range(self.length)]).reshape(self.length, 1)
             buff = np.append(chrms, self.data, axis=1)
             buff = np.append(buff, dots, axis=1)
+            coverage = self.coverage.reshape(self.length, 1)
+            buff = np.append(buff, coverage, axis=1)
             buff = np.append(buff, dots, axis=1)
-            buff = np.append(buff, self.coverage, axis=1)
-            buff = np.append(buff, dots, axis=1)
-            np.savetxt(filename, buff, fmt='%d', delimiter='\t')
+            np.savetxt(filename, buff, fmt='%s', delimiter='\t')
         elif filetype == 'TADs':
             np.savetxt(filename, self.data, fmt='%d', delimiter='\t')
 
