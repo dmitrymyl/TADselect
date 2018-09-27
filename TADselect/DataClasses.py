@@ -68,7 +68,7 @@ class GenomicRanges(object):
     @staticmethod
     def TAD_bins(arr):
         """
-        Returns TADs as as objects from their coordinates.
+        Returns TADs as objects from their coordinates.
         """
         if arr.shape[0]:
             _vector_str = np.vectorize(str)
@@ -201,33 +201,53 @@ class GenomicRanges(object):
         true segmentation obtained from simulation.
         """
         if coef == 'JI TADs':
+            if (self.length == 1 and self.data[0, 0] + self.data[0, 1] == 0) or (other.length == 1 and other.data[0, 0] + other.data[0, 1] == 0):
+                return 0
             return GenomicRanges.jaccard_index(*map(GenomicRanges.TAD_bins, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         elif coef == 'JI boundaries':
+            if (self.length == 1 and self.data[0, 0] + self.data[0, 1] == 0) or (other.length == 1 and other.data[0, 0] + other.data[0, 1] == 0):
+                return 0
             return GenomicRanges.jaccard_index(*map(GenomicRanges.TAD_boundaries, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         elif coef == 'OC TADs':
+            if (self.length == 1 and self.data[0, 0] + self.data[0, 1] == 0) or (other.length == 1 and other.data[0, 0] + other.data[0, 1] == 0):
+                return 0
             return GenomicRanges.overlap_coef(*map(GenomicRanges.TAD_bins, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         elif coef == 'OC boundaries':
+            if (self.length == 1 and self.data[0, 0] + self.data[0, 1] == 0) or (other.length == 1 and other.data[0, 0] + other.data[0, 1] == 0):
+                return 0
             return GenomicRanges.overlap_coef(*map(GenomicRanges.TAD_boundaries, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         elif coef == 'TPR TADs':
+            if (self.length == 1 and self.data[0, 0] + self.data[0, 1] == 0) or (other.length == 1 and other.data[0, 0] + other.data[0, 1] == 0):
+                return 0
             return GenomicRanges.TPR(*map(GenomicRanges.TAD_bins, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         elif coef == 'FDR TADs':
+            if (self.length == 1 and self.data[0, 0] + self.data[0, 1] == 0) or (other.length == 1 and other.data[0, 0] + other.data[0, 1] == 0):
+                return 1
             return GenomicRanges.FDR(*map(GenomicRanges.TAD_bins, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         elif coef == 'PPV TADs':
+            if (self.length == 1 and self.data[0, 0] + self.data[0, 1] == 0) or (other.length == 1 and other.data[0, 0] + other.data[0, 1] == 0):
+                return 0
             return 1 - GenomicRanges.FDR(*map(GenomicRanges.TAD_bins, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         elif coef == 'TPR boundaries':
+            if (self.length == 1 and self.data[0, 0] + self.data[0, 1] == 0) or (other.length == 1 and other.data[0, 0] + other.data[0, 1] == 0):
+                return 0
             return GenomicRanges.TPR(*map(GenomicRanges.TAD_boundaries, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         elif coef == 'FDR boundaries':
+            if (self.length == 1 and self.data[0, 0] + self.data[0, 1] == 0) or (other.length == 1 and other.data[0, 0] + other.data[0, 1] == 0):
+                return 1
             return GenomicRanges.FDR(*map(GenomicRanges.TAD_boundaries, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         elif coef == 'PPV boundaries':
+            if (self.length == 1 and self.data[0, 0] + self.data[0, 1] == 0) or (other.length == 1 and other.data[0, 0] + other.data[0, 1] == 0):
+                return 0
             return 1 - GenomicRanges.FDR(*map(GenomicRanges.TAD_boundaries, GenomicRanges.make_offset(self.data, other.data, offset=offset)))
 
         else:

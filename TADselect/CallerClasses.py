@@ -6,7 +6,7 @@ Classes for TAD calling for various tools
 
 # Universal imports
 from .utils import *
-from .logger import TADselect_logger # as logger
+from .logger import TADselect_logger  # as logger
 from .DataClasses import GenomicRanges, load_BED
 from .InteractionMatrix import InteractionMatrix
 from copy import deepcopy
@@ -422,7 +422,7 @@ class InsulationCaller(BaseCaller):
 
         IS = tadtool.tad.insulation_index(mtx, regions, window_size=window / self._metadata['resolution'])
         tads = tadtool.tad.call_tads_insulation_index(IS, cutoff, regions=regions)
-        segments = np.array([[some_tad.start - 1, some_tad.end] for some_tad in tads], dtype=int)
+        segments = np.array([[some_tad.start, some_tad.end + 1] for some_tad in tads], dtype=int)
 
         if len(segments) > 0:
             v = segments[:, 1] - segments[:, 0]
@@ -475,7 +475,7 @@ class DirectionalityCaller(BaseCaller):
 
         ii = tadtool.tad.directionality_index(mtx, regions, window_size=window / self._metadata['resolution'])
         tads = tadtool.tad.call_tads_directionality_index(ii, cutoff, regions=regions)
-        segments = np.array([[some_tad.start - 1, some_tad.end] for some_tad in tads], dtype=int)
+        segments = np.array([[some_tad.start, some_tad.end + 1] for some_tad in tads], dtype=int)
 
         if len(segments) > 0:
             v = segments[:, 1] - segments[:, 0]

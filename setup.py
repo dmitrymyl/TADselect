@@ -16,12 +16,14 @@ classifiers = """\
     Programming Language :: Python :: 3.6
 """
 
+
 def _read(*parts, **kwargs):
     filepath = os.path.join(os.path.dirname(__file__), *parts)
     encoding = kwargs.pop('encoding', 'utf-8')
     with io.open(filepath, encoding=encoding) as fh:
         text = fh.read()
     return text
+
 
 def get_version():
     version = re.search(
@@ -30,14 +32,18 @@ def get_version():
         re.MULTILINE).group(1)
     return version
 
+
 def get_long_description():
     return _read('README.md')
 
-requirements = [
-                'numpy>=1.12.0',
+
+requirements = ['numpy>=1.12.0',
                 'pandas>=0.22.0',
                 'cooler>=0.7.9',
-                'lavaburst>=0.2.0'
+                'lavaburst>=0.2.0',
+                'tadtool>=0.77',
+                'matplotlib>=2.2.2',
+                'seaborn>=0.8.1'
                 ]
 
 setup(
