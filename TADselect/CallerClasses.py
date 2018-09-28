@@ -236,7 +236,7 @@ class LavaburstCaller(BaseCaller):
         self._metadata['caller'] = 'Lavaburst'
         self._metadata['method'] = kwargs.get('method', 'armatus')
 
-    def call(self, params_data={}, **kwargs):
+    def call(self, params_dict={}, **kwargs):
         """
         Lavaburst segmentation calling for a set of parameters.
         :param params_dict: dictionary of parameters, containing gammas and methods
@@ -244,11 +244,10 @@ class LavaburstCaller(BaseCaller):
         :return:
         """
 
-        TADselect_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_data)))
+        TADselect_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
 
-        params_dict = dict()
-        params_dict['gamma'] = params_data.get('gamma', np.arange(0, 10, 1))
-        params_dict['method'] = params_data.get('method', [self._metadata['method']])
+        params_dict['gamma'] = params_dict.get('gamma', np.arange(0, 10, 1))
+        params_dict['method'] = params_dict.get('method', [self._metadata['method']])
 
         if 'files_cool' not in self._metadata.keys():
             raise BasicCallerException("No cool file present for caller. Please, perform valid conversion!")
@@ -574,7 +573,6 @@ class MrTADFinderCaller(BaseCaller):
 
 class ArrowheadCaller(BaseCaller):
 
-
     def __init__(self, datasets_labels, datasets_files, data_format, **kwargs):
         super(ArrowheadCaller, self).__init__(datasets_labels, datasets_files, data_format, **kwargs)
         self._metadata['params'] = ['windowSize']
@@ -703,7 +701,6 @@ class HiCExplorerCaller(BaseCaller):
                                     toremove=glob.glob(outmask+'*')
                                     for f in toremove: os.remove(f)
 
-
         return self._segmentations
 
     @benchmark
@@ -724,15 +721,15 @@ class HiCExplorerCaller(BaseCaller):
                 --delta {delta} \
                 --correctForMultipleTesting {correction} \
                 -p {nth}""".format(caller_path=caller_path,
-                                infile_h5=infile,
-                                out_prefix=outmask,
-                                minDepth=minDepth,
-                                maxDepth=maxDepth,
-                                step=step,
-                                th=thresholdComparisons,
-                                delta=delta,
-                                correction=correction,
-                                nth=nthreads)
+                                   infile_h5=infile,
+                                   out_prefix=outmask,
+                                   minDepth=minDepth,
+                                   maxDepth=maxDepth,
+                                   step=step,
+                                   th=thresholdComparisons,
+                                   delta=delta,
+                                   correction=correction,
+                                   nth=nthreads)
 
         run_command(command)
 
@@ -828,7 +825,7 @@ class TADbitCaller(BaseCaller):
     def __init__(self, datasets_labels, datasets_files, data_format, **kwargs):
         super(TADbitCaller, self).__init__(datasets_labels, datasets_files, data_format, **kwargs)
         self._metadata['params'] = []
-        self._metadata['caller'] = 'TADbut'
+        self._metadata['caller'] = 'TADbit'
 
     def call(self, params_dict={}, nth=1, **kwargs):
 
