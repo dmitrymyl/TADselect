@@ -63,4 +63,4 @@ This class is an interface to a Hi-C matrix. The main used format is .cool; .txt
 The class is a central hub for all other classes that performs parameter selection based on listed above strategies with iterative approach. The method converges when the step of newly produced parameter range is lower than given number of given number of iterations has been surpassed.
 
 ## Examples and explanations
-See relative jupyter notebook for usage examples and technical details.
+See relative jupyter notebook for usage examples and technical details in [examples folder](https://github.com/dmitrymyl/TADselect/tree/master/examples)
