@@ -60,7 +60,7 @@ def generate_matrix(mtx_size, tads, kdiag, kt, kd, krandom, knoise, c, max_tadsi
 
     # add noise
     for _ in range(int(mtx_size * noise)):
-        random_x = np.random.choice(range(4253))
+        random_x = np.random.choice(range(mtx_size))
         if random_x != 0:
             dots = np.array(range(random_x))
             prob_dots = krandom * (random_x - dots + pseudo) ** c
@@ -74,7 +74,7 @@ def generate_matrix(mtx_size, tads, kdiag, kt, kd, krandom, knoise, c, max_tadsi
 
     # add interactions
     for _ in range(interactions):
-        interaction_x = np.random.choice(range(4253))
+        interaction_x = np.random.choice(range(mtx_size))
         if interaction_x != 0:
             interaction_y = scipy.stats.randint.rvs(max(0, int(interaction_x - max_tadsize * 4 / 3)), interaction_x)
         else:

@@ -98,8 +98,6 @@ class InteractionMatrix(object):
         chromsizes = pd.Series({ch: chromsize}, name='length')
         bins = cooler.binnify(chromsizes, binsize)
 
-        print(self._mtx)
-
         pixels = cooler.io.ArrayLoader(bins, self._mtx, chunksize=10000000)
         cooler.io.create(output_cooler,
                          bins,
