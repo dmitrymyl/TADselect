@@ -236,7 +236,7 @@ class LavaburstCaller(BaseCaller):
         self._metadata['caller'] = 'Lavaburst'
         self._metadata['method'] = kwargs.get('method', 'armatus')
 
-    def call(self, params_dict={}, **kwargs):
+    def call(self, params_data={}, **kwargs):
         """
         Lavaburst segmentation calling for a set of parameters.
         :param params_dict: dictionary of parameters, containing gammas and methods
@@ -244,10 +244,10 @@ class LavaburstCaller(BaseCaller):
         :return:
         """
 
-        TADselect_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
-
-        params_dict['gamma'] = params_dict.get('gamma', np.arange(0, 10, 1))
-        params_dict['method'] = params_dict.get('method', [self._metadata['method']])
+        TADselect_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_data)))
+        params_dict = dict()
+        params_dict['gamma'] = params_data.get('gamma', np.arange(0, 10, 1))
+        params_dict['method'] = params_data.get('method', [self._metadata['method']])
 
         if 'files_cool' not in self._metadata.keys():
             raise BasicCallerException("No cool file present for caller. Please, perform valid conversion!")
@@ -332,11 +332,12 @@ class ArmatusCaller(BaseCaller):
         self._metadata['params'] = ['gamma']
         self._metadata['caller'] = 'Armatus'
 
-    def call(self, params_dict={}, **kwargs):
+    def call(self, params_data={}, **kwargs):
 
-        TADselect_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
+        TADselect_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_data)))
 
-        params_dict['gamma'] = params_dict.get('gamma', np.arange(0, 10, 1))
+        params_dict = dict()
+        params_dict['gamma'] = params_data.get('gamma', np.arange(0, 10, 1))
 
         if 'files_txt.gz' not in self._metadata.keys():
             self.convert_files('txt.gz')
@@ -371,12 +372,13 @@ class InsulationCaller(BaseCaller):
         self._metadata['params'] = ['window', 'cutoff']
         self._metadata['caller'] = 'Insulation'
 
-    def call(self, params_dict={}, **kwargs):
+    def call(self, params_data={}, **kwargs):
 
-        TADselect_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
+        TADselect_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_data)))
 
-        params_dict['window'] = params_dict.get('window', [1])
-        params_dict['cutoff'] = params_dict.get('cutoff', [0])
+        params_dict = dict()
+        params_dict['window'] = params_data.get('window', [1])
+        params_dict['cutoff'] = params_data.get('cutoff', [0])
 
         if 'files_cool' not in self._metadata.keys():
             raise BasicCallerException("No cool file present for caller. Please, perform valid conversion!")
@@ -438,12 +440,13 @@ class DirectionalityCaller(BaseCaller):
         self._metadata['params'] = ['window', 'cutoff']
         self._metadata['caller'] = 'Directionality'
 
-    def call(self, params_dict={}, **kwargs):
+    def call(self, params_data={}, **kwargs):
 
-        TADselect_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
+        TADselect_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_data)))
 
-        params_dict['window'] = params_dict.get('window', [1])
-        params_dict['cutoff'] = params_dict.get('cutoff', [0])
+        params_dict = dict()
+        params_dict['window'] = params_data.get('window', [1])
+        params_dict['cutoff'] = params_data.get('cutoff', [0])
 
         if 'files_cool' not in self._metadata.keys():
             raise BasicCallerException("No cool file present for caller. Please, perform valid conversion!")
@@ -491,11 +494,11 @@ class HiCsegCaller(BaseCaller):
         self._metadata['caller'] = 'HiCseg'
         self._metadata['distr_model'] = kwargs.get('distr_model', 'P')
 
-    def call(self, params_dict={}, **kwargs):
+    def call(self, params_data={}, **kwargs):
 
-        TADselect_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_dict)))
+        TADselect_logger.debug("Calling %s with params: %s" % (self.__class__.__name__, str(params_data)))
 
-        params_dict['distr_model'] = params_dict.get('distr_model', [self._metadata['distr_model']])
+        params_dict['distr_model'] = params_data.get('distr_model', [self._metadata['distr_model']])
 
         if 'files_txt' not in self._metadata.keys():
             self.convert_files('txt')
@@ -578,12 +581,13 @@ class ArrowheadCaller(BaseCaller):
         self._metadata['params'] = ['windowSize']
         self._metadata['caller'] = 'Arrowhead'
 
-    def call(self, params_dict={}, **kwargs):
+    def call(self, params_data={}, **kwargs):
 
         if 'files_hic' not in self._metadata.keys():
             raise BasicCallerException("No hic file present for caller. Please, perform valid conversion!")
 
-        params_dict['windowSize'] = params_dict.get('windowSize', [2000])
+        params_dict = dict()
+        params_dict['windowSize'] = params_data.get('windowSize', [2000])
 
         remove_intermediates = kwargs.get('remove_intermediates', False)
 
@@ -654,17 +658,18 @@ class HiCExplorerCaller(BaseCaller):
         self._metadata['params'] = ['minDepth', 'maxDepth', 'step', 'thresholdComparisons', 'delta', 'correction']
         self._metadata['caller'] = 'HiCExplorer'
 
-    def call(self, params_dict={}, **kwargs):
+    def call(self, params_data={}, **kwargs):
 
         if 'files_h5' not in self._metadata.keys():
             raise BasicCallerException("No h5 file present for caller. Please, perform valid conversion!")
 
-        params_dict['minDepth'] = params_dict.get('minDepth', [3*self._metadata['resolution']]) # At least 3 resolutions
-        params_dict['maxDepth'] = params_dict.get('maxDepth', [5*self._metadata['resolution']]) # At least 5 resolutions
-        params_dict['step'] = params_dict.get('step', [ self._metadata['resolution'] ]) # At least resolution
-        params_dict['thresholdComparisons'] = params_dict.get('thresholdComparisons', [0.05])
-        params_dict['delta'] = params_dict.get('delta', [0.01])
-        params_dict['correction'] = params_dict.get('correction', ['fdr'])
+        params_dict = dict()
+        params_dict['minDepth'] = params_data.get('minDepth', [3*self._metadata['resolution']]) # At least 3 resolutions
+        params_dict['maxDepth'] = params_data.get('maxDepth', [5*self._metadata['resolution']]) # At least 5 resolutions
+        params_dict['step'] = params_data.get('step', [ self._metadata['resolution'] ]) # At least resolution
+        params_dict['thresholdComparisons'] = params_data.get('thresholdComparisons', [0.05])
+        params_dict['delta'] = params_data.get('delta', [0.01])
+        params_dict['correction'] = params_data.get('correction', ['fdr'])
 
         remove_intermediates = kwargs.get('remove_intermediates', False)
 
@@ -752,16 +757,17 @@ class TADtreeCaller(BaseCaller):
         self._metadata['params'] = ['max_TAD_size', 'max_tree_depth', 'boundary_index_p', 'boundary_index_q', 'gamma']
         self._metadata['caller'] = 'TADtree'
 
-    def call(self, params_dict={}, **kwargs):
+    def call(self, params_data={}, **kwargs):
 
         if 'files_txt' not in self._metadata.keys():
             raise BasicCallerException("No txt file present for caller. Please, perform valid conversion!")
 
-        params_dict['max_TAD_size'] = params_dict.get("max_TAD_size", [50])    #S = 50  # max. size of TAD (in bins)
-        params_dict['max_tree_depth'] = params_dict.get("max_tree_depth", [25])    #M = 25  # max. number of TADs in each tad-tree
-        params_dict['boundary_index_p'] = params_dict.get("boundary_index_p", [3])     #p = 3  # boundary index parameter
-        params_dict['boundary_index_q'] = params_dict.get("boundary_index_q", [12])    #q = 12 # boundary index parameter
-        params_dict['gamma'] = params_dict.get("gamma", [500])                 #gamma = 500  # balance between boundary index and squared error in score function
+        params_dict = dict()
+        params_dict['max_TAD_size'] = params_data.get("max_TAD_size", [50])    #S = 50  # max. size of TAD (in bins)
+        params_dict['max_tree_depth'] = params_data.get("max_tree_depth", [25])    #M = 25  # max. number of TADs in each tad-tree
+        params_dict['boundary_index_p'] = params_data.get("boundary_index_p", [3])     #p = 3  # boundary index parameter
+        params_dict['boundary_index_q'] = params_data.get("boundary_index_q", [12])    #q = 12 # boundary index parameter
+        params_dict['gamma'] = params_data.get("gamma", [500])                 #gamma = 500  # balance between boundary index and squared error in score function
 
 
         for max_TAD_size in params_dict['max_TAD_size']:

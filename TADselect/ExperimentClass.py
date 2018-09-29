@@ -1,9 +1,45 @@
-from . import CallerClasses, DataClasses
+from . import CallerClasses, DataClasses, InteractionMatrix
 from .utils import *
 from itertools import product
 from copy import deepcopy
 import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 import seaborn as sns
+from matplotlib.colors import LinearSegmentedColormap
+
+
+def create_custom_pallete(vmin, vmax, center, factor, cmap='Reds'):
+    """
+    Returns matplotlib color pallete constructed from given one
+    in cmap but with new boundaries. The boundaries are built by
+    uniformly filling ranges [vmin, center] and [center, vmax]
+    with N=factor values.
+    """
+    step1 = abs(center - vmin) / factor
+    step2 = abs(vmax - center) / factor
+    borders = list()
+    borders.append(vmin)
+    k = 1
+    dot = vmin + step1 * k
+    while dot < center:
+        borders.append(dot)
+        k += 1
+        dot = vmin + step1 * k
+    borders.append(center)
+    k = 1
+    dot = center + step2 * k
+    while dot < vmax:
+        borders.append(dot)
+        k += 1
+        dot = center + step2 * k
+    borders.append(vmax)
+
+    hex_colors = sns.color_palette(cmap, n_colors=len(borders) * 2 + 2).as_hex()
+    hex_colors = [hex_colors[i] for i in range(0, len(hex_colors), 2)]
+    colors = list(zip(borders, hex_colors))
+
+    return LinearSegmentedColormap.from_list(name='custom_reds', colors=colors)
+
 
 caller_dict = {'armatus': CallerClasses.ArmatusCaller,
                'lavaburst': CallerClasses.LavaburstCaller,
@@ -25,7 +61,7 @@ caller_dict = {'armatus': CallerClasses.ArmatusCaller,
 
 default_funcs = {'simulated': ['TPR TADs', 'TPR boundaries', 'PPV TADs', 'PPV boundaries'],
                  'convergence': ['JI TADs', 'OC TADs', 'JI boundaries', 'OC boundaries'],
-                 'border_events': ['P-value']}
+                 'border_events': ['Distance']}
 
 set_scale_factors = {'armatus': {'narrow': 2, 'wide': 5, 'factor': 5},
                      'lavaburst': {'narrow': 2, 'wide': 5, 'factor': 5},
@@ -82,9 +118,9 @@ class Experiment(object):
                                'lavacorner': pd.Series([np.arange(-5, 5.5, 0.5)], index=['gamma']),
                                'lavamodularity': pd.Series([np.arange(5, 15.5, 0.5)], index=['gamma']),
                                'insulation': pd.Series([np.arange(1, 11, 1) * self.caller._metadata['resolution'],
-                                                        [0.1, 0.2, 0.5, 0.7]], index=['window', 'cutoff']),
+                                                        np.array([0.1, 0.2, 0.5, 0.7])], index=['window', 'cutoff']),
                                'directionality': pd.Series([np.arange(1, 101, 10) * self.caller._metadata['resolution'],
-                                                            [0.1, 0.2, 0.5, 0.7]], index=['window', 'cutoff']),
+                                                            np.array([0.1, 0.2, 0.5, 0.7])], index=['window', 'cutoff']),
                                'hicseg': None,  # NoGamma
                                'mrtadfinder': None,  # somewhat incorrect
                                'hicexplorer': pd.Series([np.arange(2, 8, 1) * self.caller._metadata['resolution'],
@@ -106,7 +142,7 @@ class Experiment(object):
 
         # min and max mean size of TADs in bins, user is able to redefine them.
         self.profile = {'size': [2, 100],
-                        'dispersion': [0.05, 0.95],
+                        #'dispersion': [0.05, 0.95],
                         'midpoint': 500000 / self.caller._metadata['resolution']}
 
     @staticmethod
@@ -272,7 +308,8 @@ class Experiment(object):
 
         elif background_method == 'size':
             range_list = list()
-            print(oldrange, target_arr, background_arr)
+
+            #print(oldrange, target_arr, background_arr)
             max_index = Experiment.max_coord(target_arr, background_arr, self.profile['size'], threshold=threshold)
             best_gamma = list()
             if not isinstance(max_index, list) and not isinstance(max_index, tuple):
@@ -336,7 +373,7 @@ class Experiment(object):
         # plot tuning
         if plot_size:
             plt.figure(figsize=plot_size)
-        sns.heatmap(mtx[bgn:end, bgn:end], cmap='Reds')
+        sns.heatmap(mtx[bgn:end, bgn:end], cmap='Reds', cbar=False)
         plt.xticks([])
         plt.yticks([])
 
@@ -350,7 +387,7 @@ class Experiment(object):
             plt.savefig(fname)
 
     @staticmethod
-    def plot_one_dim(caller, obtained_gamma_range, optimisation_data, background_data, best_gamma, filename=None):
+    def plot_one_dim(caller, obtained_gamma_range, optimisation_data, background_data, best_gamma, bgn=0, end=250, filename=None):
         """
         Plots three-panel plot: optimisation data, background data for given range of gammas
         and best segmentation concerning both data.
@@ -360,9 +397,10 @@ class Experiment(object):
         :param background_data:
         :param best_gamma:
         """
-        mtx_1 = cooler.Cooler(caller._metadata['files_cool'][0]).matrix(balance=caller._metadata['balance'],
-                                                                        as_pixels=False).fetch(caller._metadata['chr'],
-                                                                                               caller._metadata['chr'])
+        #mtx_1 = cooler.Cooler(caller._metadata['files_cool'][0]).matrix(balance=caller._metadata['balance'],
+        #                                                                as_pixels=False).fetch(caller._metadata['chr'],
+        #                                                                                       caller._metadata['chr'])
+        mtx_1 = InteractionMatrix(input_mtx=caller._metadata['files_cool'][0], input_type='cool', ch=caller._metadata['chr'], balance=False)
         label = caller._metadata['labels'][0]
         best_segmentation = caller._segmentations[label][best_gamma[0]].data
         plt.rcParams['figure.figsize'] = 10, 10
@@ -370,18 +408,20 @@ class Experiment(object):
         if 'Distance' not in optimisation_data.columns.values:
             plt.ylim(0, 1.01)
         plt.plot(optimisation_data.loc[label].loc[obtained_gamma_range[0]], alpha=0.7)
+        plt.axvline(best_gamma[0], color='purple')
         plt.legend(labels=optimisation_data.loc[label].columns)
         plt.subplot(222)
         plt.plot(background_data.loc[label].loc[obtained_gamma_range[0]])
+        plt.axvline(best_gamma[0], color='purple')
         plt.legend(labels=background_data.loc[label].columns)
         plt.subplot(223)
-        Experiment.plot_tads(mtx_1, best_segmentation, bgn=1000, end=1500)
+        Experiment.plot_tads(mtx_1._mtx, best_segmentation, bgn=bgn, end=end)
         plt.title('Best segmentation with gamma{}'.format(best_gamma))
         if filename:
             plt.savefig(filename)
 
     @staticmethod
-    def plot_two_dim(caller, obtained_gamma_range, optimisation_data, background_data, best_gamma, background_method, filename=None):
+    def plot_two_dim(caller, obtained_gamma_range, optimisation_data, background_data, best_gamma, background_method, bgn=0, end=250, filename=None):
         """
         Plots six-panel plot: optimisation data, background data for given range of gammas
         and best segmentation concerning both data in slice of the first two gammas.
@@ -392,9 +432,10 @@ class Experiment(object):
         :param best_gamma:
         :param background_method:
         """
-        mtx_1 = cooler.Cooler(caller._metadata['files_cool'][0]).matrix(balance=caller._metadata['balance'],
-                                                                        as_pixels=False).fetch(caller._metadata['chr'],
-                                                                                               caller._metadata['chr'])
+        #mtx_1 = cooler.Cooler(caller._metadata['files_cool'][0]).matrix(balance=caller._metadata['balance'],
+        #                                                                as_pixels=False).fetch(caller._metadata['chr'],
+        #                                                                                       caller._metadata['chr'])
+        mtx_1 = InteractionMatrix(input_mtx=caller._metadata['files_cool'][0], input_type='cool', ch=caller._metadata['chr'], balance=False)
         label = caller._metadata['labels'][0]
         best_segmentation = caller._segmentations[label][best_gamma].data
         heatmap_source = optimisation_data.unstack(level=0).unstack(level=0).groupby('gamma2').aggregate(np.mean)
@@ -402,24 +443,40 @@ class Experiment(object):
 
         if 'Distance' in optimisation_data.columns.values:
             vmin = None
+            center = None
             vmax = 0
         else:
             vmin = 0
+            center = 0.5
             vmax = 1
+
+        x_gamma, = np.where(obtained_gamma_range[0] == best_gamma[0])
+        y_gamma, = np.where(obtained_gamma_range[1] == best_gamma[1])
+        x_gamma = int(x_gamma)
+        y_gamma = int(y_gamma)
+
         for i, func in zip((1, 2, 4, 5), optimisation_data.columns):
             plt.subplot(2, 3, i)
-            sns.heatmap(heatmap_source[func][label].loc[obtained_gamma_range[1],
+            center = np.median(np.array(heatmap_source[func][label].loc[obtained_gamma_range[1], obtained_gamma_range[0]]))
+            factor = obtained_gamma_range[0].shape[0] * obtained_gamma_range[1].shape[0] // 2
+            print(vmin, vmax, center, factor)
+            custom_color_map = create_custom_pallete(vmin, vmax, center, factor)
+            g = sns.heatmap(heatmap_source[func][label].loc[obtained_gamma_range[1],
                                                         obtained_gamma_range[0]],
-                        cmap='Reds', center=0.5, vmin=vmin, vmax=vmax)
+                            cmap=custom_color_map, center=None, vmin=vmin, vmax=vmax)
+            ax = g.axes
+            ax.add_patch(Rectangle((x_gamma, y_gamma), 1, 1, fill=False, edgecolor='purple', lw=3))
             plt.title(func)
 
         background_source = background_data.unstack(level=0).unstack(level=0).groupby('gamma2').aggregate(np.mean)
         plt.subplot(2, 3, 3)
-        sns.heatmap(background_source['size'][label].loc[obtained_gamma_range[1],
-                                                         obtained_gamma_range[0]], cmap='Reds')
+        g = sns.heatmap(background_source['size'][label].loc[obtained_gamma_range[1],
+                                                             obtained_gamma_range[0]], cmap='Reds')
+        ax = g.axes
+        ax.add_patch(Rectangle((x_gamma, y_gamma), 1, 1, fill=False, edgecolor='purple', lw=3))
         plt.title(background_method)
         plt.subplot(2, 3, 6)
-        Experiment.plot_tads(mtx_1, best_segmentation, bgn=1000, end=1500)
+        Experiment.plot_tads(mtx_1._mtx, best_segmentation, bgn=bgn, end=end)
         plt.title('Best segmentation with gamma{}'.format(best_gamma))
         plt.subplots_adjust(hspace=0.5, wspace=0.5)
         if filename:
@@ -513,10 +570,12 @@ class Experiment(object):
         threshold = kwargs.get('threshold', 0.01)
         iterations = kwargs.get('iterations', 5)
         cutoff = kwargs.get('cutoff', 0.95)
-        plt_filename = kwargs.get('filename', 'sample.png')
+        plt_filename = kwargs.get('filename', None)
         offset = kwargs.get('offset', 0)
+        bgn = kwargs.get('bgn', 0)
+        end = kwargs.get('end', 250)
         step = self.history['ranges'][-1][0][1] - self.history['ranges'][-1][0][0]
-        best_value = -1
+        best_value = np.NINF
         while step > threshold and self.history['iteration'] < iterations and best_value < cutoff:
             self.call(offset=offset)
             best_value = self.optimisation_data.loc[self.caller._metadata['labels'][0]].loc[self.best_gamma][0]
@@ -529,6 +588,8 @@ class Experiment(object):
                                     self.optimisation_data,
                                     self.background_data,
                                     self.best_gamma,
+                                    bgn=bgn,
+                                    end=end,
                                     filename=plt_filename)
 
         elif self.history['ranges'][-2].shape[0] > 1:  # if gamma is n-dim
@@ -538,6 +599,8 @@ class Experiment(object):
                                     self.background_data,
                                     self.best_gamma,
                                     self.background_method,
+                                    bgn=bgn,
+                                    end=end,
                                     filename=plt_filename)
 
 
